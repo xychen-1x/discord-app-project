@@ -248,7 +248,7 @@ function loadSettingsTab(tab = settingsTab) {
       <div class="settings-info-row"><span>Account ID</span><code>${escapeHtml(currentUser?.id || "")}</code></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button>`;
   } else if (tab === "profile") {
     panel.innerHTML = `<div class="settings-panel-heading"><h2>Profiles</h2><p>This is how other people see you on Orbit.</p></div>
-      <div class="profile-preview"><div class="profile-preview-avatar">${escapeHtml((profile.display_name || "O").slice(0,1).toUpperCase())}</div><div><strong id="profile-preview-name">${escapeHtml(profile.display_name || "Your display name")}</strong><span id="profile-preview-username">@${escapeHtml(profile.username || "username")}</span></div></div>
+      <div class="profile-preview"><div id="profile-preview-avatar" class="profile-preview-avatar">${escapeHtml((profile.display_name || "O").slice(0,1).toUpperCase())}</div><div><strong id="profile-preview-name">${escapeHtml(profile.display_name || "Your display name")}</strong><span id="profile-preview-username">@${escapeHtml(profile.username || "username")}</span></div></div>
       <form id="profile-edit-form" class="settings-form"><label for="profile-display-name">DISPLAY NAME</label><input id="profile-display-name" type="text" maxlength="32" value="${escapeHtml(profile.display_name || "")}" required placeholder="Your display name"><label for="profile-username">USERNAME</label><div class="username-input-wrap"><span>@</span><input id="profile-username" type="text" minlength="3" maxlength="20" pattern="[a-z0-9_]{3,20}" autocapitalize="none" autocomplete="username" value="${escapeHtml(profile.username || "")}" required placeholder="username"></div><p id="username-availability" class="settings-help">3–20 characters: lowercase letters, numbers, underscores.</p><label for="profile-bio">ABOUT ME</label><textarea id="profile-bio" maxlength="190" rows="4" placeholder="Tell people a little about yourself…">${escapeHtml(profile.bio || "")}</textarea><div class="bio-counter"><span>Up to 190 characters</span><span id="bio-count">${(profile.bio || "").length}/190</span></div><button class="section-action" type="submit">Save Changes</button><p id="profile-form-message" class="settings-message" role="status"></p></form>`;
   } else if (tab === "appearance") {
     panel.innerHTML = `<div class="settings-panel-heading"><h2>Appearance</h2><p>Choose how Orbit looks on this device.</p></div><div class="settings-info-row"><div><strong>Dark theme</strong><p>Orbit's current interface theme.</p></div><span class="settings-tag">Active</span></div>`;
@@ -402,6 +402,14 @@ form.addEventListener("submit", async (event) => {
     message.textContent = "Your passwords do not match.";
     confirmPasswordInput.focus();
     return;
+  }
+  if (authMode === "signup") {
+    const { data: available, error: availabilityError } = await supabase.rpc("is_username_available", { requested_username: $("#username").value.trim().toLowerCase() });
+    if (availabilityError || !available) {
+      message.textContent = availabilityError ? "Unable to verify username. Please try again." : "That username is already taken. Choose another one.";
+      $("#username").focus();
+      return;
+    }
   }
   submit.disabled = true;
   submit.textContent = authMode === "signup" ? "Creating account…" : "Logging in…";
