@@ -248,8 +248,8 @@ function loadSettingsTab(tab = settingsTab) {
       <div class="settings-info-row"><span>Account ID</span><code>${escapeHtml(currentUser?.id || "")}</code></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button>`;
   } else if (tab === "profile") {
     panel.innerHTML = `<div class="settings-panel-heading"><h2>Profiles</h2><p>This is how other people see you on Orbit.</p></div>
-      <div class="profile-preview"><div id="profile-preview-avatar" class="profile-preview-avatar">${escapeHtml((profile.display_name || "O").slice(0,1).toUpperCase())}</div><div><strong id="profile-preview-name">${escapeHtml(profile.display_name || "Your display name")}</strong><span id="profile-preview-username">@${escapeHtml(profile.username || "username")}</span></div></div>
-      <form id="profile-edit-form" class="settings-form"><label for="profile-display-name">DISPLAY NAME</label><input id="profile-display-name" type="text" maxlength="32" value="${escapeHtml(profile.display_name || "")}" required placeholder="Your display name"><label for="profile-username">USERNAME</label><div class="username-input-wrap"><span>@</span><input id="profile-username" type="text" minlength="3" maxlength="20" pattern="[a-z0-9_]{3,20}" autocapitalize="none" autocomplete="username" value="${escapeHtml(profile.username || "")}" required placeholder="username"></div><p id="username-availability" class="settings-help">3–20 characters: lowercase letters, numbers, underscores.</p><label for="profile-bio">ABOUT ME</label><textarea id="profile-bio" maxlength="190" rows="4" placeholder="Tell people a little about yourself…">${escapeHtml(profile.bio || "")}</textarea><div class="bio-counter"><span>Up to 190 characters</span><span id="bio-count">${(profile.bio || "").length}/190</span></div><button class="section-action" type="submit">Save Changes</button><p id="profile-form-message" class="settings-message" role="status"></p></form>`;
+      <div class="profile-preview">${profile.avatar_url ? `<img id="profile-preview-avatar" class="profile-preview-avatar profile-preview-image" src="${escapeHtml(profile.avatar_url)}" alt="Profile avatar">` : `<div id="profile-preview-avatar" class="profile-preview-avatar">${escapeHtml((profile.display_name || "O").slice(0,1).toUpperCase())}</div>`}<div><strong id="profile-preview-name">${escapeHtml(profile.display_name || "Your display name")}</strong><span id="profile-preview-username">@${escapeHtml(profile.username || "username")}</span></div></div>
+      <form id="profile-edit-form" class="settings-form"><label for="profile-avatar-file">PROFILE AVATAR</label><input id="profile-avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><p class="settings-help">PNG, JPG, WebP, or GIF. Maximum 5 MB.</p><p id="avatar-form-message" class="settings-message" role="status"></p><label for="profile-display-name">DISPLAY NAME</label><input id="profile-display-name" type="text" maxlength="32" value="${escapeHtml(profile.display_name || "")}" required placeholder="Your display name"><label for="profile-username">USERNAME</label><div class="username-input-wrap"><span>@</span><input id="profile-username" type="text" minlength="3" maxlength="20" pattern="[a-z0-9_]{3,20}" autocapitalize="none" autocomplete="username" value="${escapeHtml(profile.username || "")}" required placeholder="username"></div><p id="username-availability" class="settings-help">3–20 characters: lowercase letters, numbers, underscores.</p><label for="profile-bio">ABOUT ME</label><textarea id="profile-bio" maxlength="190" rows="4" placeholder="Tell people a little about yourself…">${escapeHtml(profile.bio || "")}</textarea><div class="bio-counter"><span>Up to 190 characters</span><span id="bio-count">${(profile.bio || "").length}/190</span></div><button class="section-action" type="submit">Save Changes</button><p id="profile-form-message" class="settings-message" role="status"></p></form>`;
   } else if (tab === "appearance") {
     panel.innerHTML = `<div class="settings-panel-heading"><h2>Appearance</h2><p>Choose how Orbit looks on this device.</p></div><div class="settings-info-row"><div><strong>Dark theme</strong><p>Orbit's current interface theme.</p></div><span class="settings-tag">Active</span></div>`;
   } else {
@@ -284,6 +284,46 @@ async function checkProfileUsername() {
     status.dataset.state = data ? "success" : "error";
   }
 }
+
+
+document.addEventListener("change", async (event) => {
+  if (event.target.id !== "profile-avatar-file") return;
+  const file = event.target.files?.[0];
+  const status = $("#avatar-form-message");
+  if (!file || !status) return;
+  const allowed = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  if (!allowed.includes(file.type) || file.size > 5 * 1024 * 1024) {
+    status.textContent = "Choose a JPG, PNG, WebP, or GIF image up to 5 MB.";
+    status.dataset.state = "error";
+    event.target.value = "";
+    return;
+  }
+  const extension = ({ "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif" })[file.type];
+  const path = `${currentUser.id}/avatar.${extension}`;
+  status.textContent = "Uploading avatar…";
+  status.dataset.state = "pending";
+  const { error: uploadError } = await supabase.storage.from("avatars").upload(path, file, {
+    cacheControl: "3600", contentType: file.type, upsert: true
+  });
+  if (uploadError) {
+    status.textContent = uploadError.message || "Avatar upload failed.";
+    status.dataset.state = "error";
+    return;
+  }
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+  const avatarUrl = data.publicUrl + `?v=${Date.now()}`;
+  const { error: updateError } = await supabase.from("profiles")
+    .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+    .eq("id", currentUser.id);
+  if (updateError) {
+    status.textContent = updateError.message || "Could not save avatar to your profile.";
+    status.dataset.state = "error";
+    return;
+  }
+  status.textContent = "Avatar updated.";
+  status.dataset.state = "success";
+  await loadAccountProfile();
+});
 
 document.addEventListener("click", (event) => {
   const tab = event.target.closest("[data-settings-tab]");
@@ -498,7 +538,7 @@ $("#account-menu").addEventListener("click", (event) => {
   closeAccountMenu();
   if (action === "logout") signOut();
   if (action === "settings") renderSection("Settings");
-  if (action === "profile") renderSection("Settings");
+  if (action === "profile") { renderSection("Settings"); loadSettingsTab("profile"); }
 });
 $("#rail-settings").addEventListener("click", () => renderSection("Settings"));
 document.querySelectorAll("#create-community, #create-community-shortcut").forEach((button) => button.addEventListener("click", () => renderSection("Communities")));
