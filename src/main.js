@@ -85,7 +85,8 @@ function renderSection(section) {
     Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div><button class="section-action" type="button" disabled title="Friend requests are part of the next feature build">Add Friend</button></section><section class="feature-empty"><span class="empty-illustration">${icon.friends}</span><h2>Your friends list is waiting</h2><p>Friend search, requests, and your friends list will be connected in the Friends feature build.</p></section>`,
     Messages: `<section class="section-heading"><div><p class="welcome-kicker">PRIVATE CONVERSATIONS</p><h1>Messages</h1><p>Your direct and group conversations.</p></div></section><section class="feature-empty"><span class="empty-illustration">${icon.messages}</span><h2>No conversations yet</h2><p>Your direct messages and group chats will appear here once messaging is implemented.</p></section>`,
     Communities: `<section class="section-heading"><div><p class="welcome-kicker">FIND YOUR PEOPLE</p><h1>Communities</h1><p>Places to talk about what you enjoy.</p></div><button class="section-action" type="button" disabled title="Community creation is part of the next feature build">Create Community</button></section><section class="feature-empty"><span class="empty-illustration">${icon.communities}</span><h2>Make a place of your own</h2><p>Community discovery, creation, invites, and channels will be connected in the Communities feature build.</p></section>`,
-    Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and app preferences.</p></div></section><section class="settings-list"><div class="settings-row"><div><strong>Account</strong><p>Signed in as <span id="settings-email"></span></p></div><span class="settings-tag">Connected</span></div><div class="settings-row"><div><strong>Appearance</strong><p>Orbit currently uses its dark theme.</p></div><span class="settings-tag">Dark</span></div><div class="settings-row"><div><strong>Privacy & Safety</strong><p>Privacy controls will be added with the account settings feature.</p></div><span class="settings-tag">Coming later</span></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button></section>`
+    Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and app preferences.</p></div></section><section class="settings-list"><div class="settings-row"><div><strong>Account</strong><p>Signed in as <span id="settings-email"></span></p></div><span class="settings-tag">Connected</span></div><div class="settings-row"><div><strong>Appearance</strong><p>Orbit currently uses its dark theme.</p></div><span class="settings-tag">Dark</span></div><div class="settings-row"><div><strong>Privacy & Safety</strong><p>Privacy controls will be added with the account settings feature.</p></div><span class="settings-tag">Coming later</span></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button></section>`,
+    Help: `<section class="section-heading"><div><p class="welcome-kicker">ORBIT SUPPORT</p><h1>Help & Support</h1><p>Find guidance for using Orbit.</p></div></section><section class="feature-empty"><h2>Support resources are being prepared</h2><p>Help articles and support contact options will be available before public launch.</p></section>`
   };
   content.innerHTML = views[section] || views.Home;
   content.focus({ preventScroll: true });
@@ -222,17 +223,12 @@ $("#account-menu").addEventListener("click", (event) => {
   if (action === "profile") renderSection("Settings");
 });
 $("#rail-settings").addEventListener("click", () => renderSection("Settings"));
-$("#create-community, #create-community-shortcut").forEach?.(() => {});
-$("#create-community, #create-community-shortcut").addEventListener?.("click", () => renderSection("Communities"));
+document.querySelectorAll("#create-community, #create-community-shortcut").forEach((button) => button.addEventListener("click", () => renderSection("Communities")));
 $("#workspace-menu-button").addEventListener("click", () => renderSection("Home"));
 $("#mobile-sidebar-toggle").addEventListener("click", openMobileSidebar);
 $("#mobile-backdrop").addEventListener("click", closeMobileSidebar);
 $("#inbox-button").addEventListener("click", () => renderSection("Messages"));
-$("#help-button").addEventListener("click", () => {
-  message.textContent = "Help and support information will be added before public launch.";
-  showAuth(message.textContent);
-});
-$("#logout").addEventListener?.("click", signOut);
+$("#help-button").addEventListener("click", () => renderSection("Help"));
 
 setAuthMode("signin");
 if (!isSupabaseConfigured || !supabase) {
