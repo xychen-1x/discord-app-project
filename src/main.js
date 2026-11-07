@@ -82,7 +82,7 @@ function renderSection(section) {
   const content = $("#home-content");
   const views = {
     Home: `<section class="welcome-block"><p class="welcome-kicker">YOUR SPACE</p><h1>Welcome to Orbit.</h1><p>Pick a place to start a conversation.</p></section><section class="home-grid" aria-label="Quick access"><button class="home-tile" data-section="Friends"><span class="tile-icon friends-tile-icon">${icon.friends}</span><span class="tile-copy"><strong>Friends</strong><small>Add people and keep in touch.</small></span><span class="tile-arrow">›</span></button><button class="home-tile" data-section="Messages"><span class="tile-icon messages-tile-icon">${icon.messages}</span><span class="tile-copy"><strong>Messages</strong><small>Your private conversations live here.</small></span><span class="tile-arrow">›</span></button><button class="home-tile" data-section="Communities"><span class="tile-icon communities-tile-icon">${icon.communities}</span><span class="tile-copy"><strong>Communities</strong><small>Find a community or create your own.</small></span><span class="tile-arrow">›</span></button></section>`,
-    Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div><button class="section-action" type="button" disabled title="Friend requests are part of the next feature build">Add Friend</button></section><section class="feature-empty"><span class="empty-illustration">${icon.friends}</span><h2>Your friends list is waiting</h2><p>Friend search, requests, and your friends list will be connected in the Friends feature build.</p></section>`,
+    Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div></section><section class="friends-shell"><div class="friends-tabs" role="tablist" aria-label="Friends"><button class="friends-tab active" data-friends-tab="all">All</button><button class="friends-tab" data-friends-tab="online">Online</button><button class="friends-tab" data-friends-tab="pending">Pending</button><button class="friends-tab" data-friends-tab="blocked">Blocked</button><button class="friends-tab add-friend-tab" data-friends-tab="add">Add Friend</button></div><div id="friends-panel" class="friends-panel"><div class="friends-loading">Loading friends…</div></div></section>`,
     Messages: `<section class="section-heading"><div><p class="welcome-kicker">PRIVATE CONVERSATIONS</p><h1>Messages</h1><p>Your direct and group conversations.</p></div></section><section class="feature-empty"><span class="empty-illustration">${icon.messages}</span><h2>No conversations yet</h2><p>Your direct messages and group chats will appear here once messaging is implemented.</p></section>`,
     Communities: `<section class="section-heading"><div><p class="welcome-kicker">FIND YOUR PEOPLE</p><h1>Communities</h1><p>Places to talk about what you enjoy.</p></div><button class="section-action" type="button" disabled title="Community creation is part of the next feature build">Create Community</button></section><section class="feature-empty"><span class="empty-illustration">${icon.communities}</span><h2>Make a place of your own</h2><p>Community discovery, creation, invites, and channels will be connected in the Communities feature build.</p></section>`,
     Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and app preferences.</p></div></section><section class="settings-list"><div class="settings-row"><div><strong>Account</strong><p>Signed in as <span id="settings-email"></span></p></div><span class="settings-tag">Connected</span></div><div class="settings-row"><div><strong>Appearance</strong><p>Orbit currently uses its dark theme.</p></div><span class="settings-tag">Dark</span></div><div class="settings-row"><div><strong>Privacy & Safety</strong><p>Privacy controls will be added with the account settings feature.</p></div><span class="settings-tag">Coming later</span></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button></section>`,
@@ -93,9 +93,120 @@ function renderSection(section) {
   const user = currentUser;
   const settingsEmail = $("#settings-email");
   if (settingsEmail) settingsEmail.textContent = user?.email || "Not available";
+  if (section === "Friends") loadFriendsTab("all");
   const settingsLogout = $("#settings-logout");
   if (settingsLogout) settingsLogout.addEventListener("click", signOut);
   closeMobileSidebar();
+}
+
+
+let friendsTab = "all";
+let friendSearchTimer = null;
+function escapeHtml(value = "") {
+  return String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+}
+function friendRow(profile, actionMarkup = "") {
+  const name = profile.display_name || profile.username || "Orbit user";
+  const initial = name.slice(0,1).toUpperCase();
+  const username = profile.username ? "@"+profile.username : "";
+  return `<article class="friend-row"><div class="friend-avatar">${escapeHtml(initial)}</div><div class="friend-identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(username)}</span></div><div class="friend-actions">${actionMarkup}</div></article>`;
+}
+async function loadFriendsTab(tab = friendsTab) {
+  friendsTab = tab;
+  const panel = $("#friends-panel");
+  if (!panel || !supabase || !currentUser) return;
+  panel.innerHTML = '<div class="friends-loading">Loading…</div>';
+  const tabs = ["all","online","pending","blocked","add"];
+  document.querySelectorAll("[data-friends-tab]").forEach((button) => button.classList.toggle("active",button.dataset.friendsTab===tab));
+  try {
+    if (tab === "add") {
+      panel.innerHTML = '<div class="add-friend-panel"><h2>Add Friend</h2><p>You can add friends with their Orbit username.</p><form id="friend-search-form" class="friend-search-form"><input id="friend-search-input" type="search" autocomplete="off" maxlength="32" placeholder="Enter a username" aria-label="Search username" required><button class="section-action" type="submit">Search</button></form><div id="friend-search-results" class="friend-list"></div></div>';
+      return;
+    }
+    if (tab === "pending") {
+      const {data,error}=await supabase.from("friend_requests").select("id,sender_id,receiver_id,status,created_at").eq("status","pending").or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`).order("created_at",{ascending:false});
+      if(error) throw error;
+      const ids=[...new Set((data||[]).map(r=>r.sender_id===currentUser.id?r.receiver_id:r.sender_id))];
+      const {data:profiles,error:profileError}=ids.length?await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id",ids):{data:[],error:null};
+      if(profileError) throw profileError;
+      const map=new Map((profiles||[]).map(p=>[p.id,p]));
+      const incoming=(data||[]).filter(r=>r.receiver_id===currentUser.id);
+      const outgoing=(data||[]).filter(r=>r.sender_id===currentUser.id);
+      panel.innerHTML=`<h3 class="friend-list-heading">Incoming — ${incoming.length}</h3><div class="friend-list">${incoming.map(r=>friendRow(map.get(r.sender_id)||{},`<button class="friend-action accept" data-friend-action="accept" data-request-id="${r.id}">Accept</button><button class="friend-action" data-friend-action="decline" data-request-id="${r.id}">Decline</button>`)).join("")||'<p class="friend-empty-note">No incoming requests.</p>'}</div><h3 class="friend-list-heading outgoing-heading">Outgoing — ${outgoing.length}</h3><div class="friend-list">${outgoing.map(r=>friendRow(map.get(r.receiver_id)||{},`<button class="friend-action" data-friend-action="cancel" data-request-id="${r.id}">Cancel</button>`)).join("")||'<p class="friend-empty-note">No outgoing requests.</p>'}</div>`;
+      return;
+    }
+    if (tab === "blocked") {
+      const {data,error}=await supabase.from("blocked_users").select("blocked_id").eq("blocker_id",currentUser.id);
+      if(error) throw error;
+      const ids=(data||[]).map(x=>x.blocked_id);
+      const {data:profiles,error:profileError}=ids.length?await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id",ids):{data:[],error:null};
+      if(profileError) throw profileError;
+      panel.innerHTML=(profiles||[]).map(p=>friendRow(p,`<button class="friend-action" data-friend-action="unblock" data-user-id="${p.id}">Unblock</button>`)).join("")||'<div class="friend-empty-note centered">You have not blocked anyone.</div>';
+      return;
+    }
+    const {data,error}=await supabase.from("friendships").select("user_low_id,user_high_id").or(`user_low_id.eq.${currentUser.id},user_high_id.eq.${currentUser.id}`);
+    if(error) throw error;
+    const ids=(data||[]).map(f=>f.user_low_id===currentUser.id?f.user_high_id:f.user_low_id);
+    const {data:profiles,error:profileError}=ids.length?await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id",ids):{data:[],error:null};
+    if(profileError) throw profileError;
+    let list=profiles||[];
+    if(tab==="online" && list.length) {
+      const {data:statuses,error:statusError}=await supabase.from("user_status").select("user_id,presence").in("user_id",ids);
+      if(statusError) throw statusError;
+      const online=new Set((statuses||[]).filter(s=>s.presence==="online").map(s=>s.user_id));
+      list=list.filter(p=>online.has(p.id));
+    }
+    panel.innerHTML=list.map(p=>friendRow(p,`<button class="friend-action" data-friend-action="message" data-user-id="${p.id}" disabled title="Direct messages are next">Message</button><button class="friend-action danger" data-friend-action="remove" data-user-id="${p.id}">Remove</button><button class="friend-action" data-friend-action="block" data-user-id="${p.id}">Block</button>`)).join("")||`<div class="friend-empty-note centered">${tab==="online"?"No friends are currently online.":"No friends yet. Use Add Friend to find people."}</div>`;
+  } catch(error) {
+    panel.innerHTML=`<div class="friend-error">${escapeHtml(error.message||"Unable to load friends.")}</div>`;
+  }
+}
+async function searchFriendProfiles(query) {
+  const result=$("#friend-search-results");
+  if(!result || !query.trim()) { if(result) result.innerHTML=""; return; }
+  result.innerHTML='<p class="friends-loading">Searching…</p>';
+  const safe=query.trim().replace(/[,%()]/g,"");
+  const {data,error}=await supabase.from("profiles").select("id,username,display_name,avatar_url").ilike("username",safe).neq("id",currentUser.id).limit(12);
+  if(error) { result.innerHTML=`<p class="friend-error">${escapeHtml(error.message)}</p>`; return; }
+  if(!data?.length) { result.innerHTML='<p class="friend-empty-note">No users found. Check the username and try again.</p>'; return; }
+  const ids=data.map(p=>p.id);
+  const [friendships,requests,blocks]=await Promise.all([
+    supabase.from("friendships").select("user_low_id,user_high_id").or(`user_low_id.eq.${currentUser.id},user_high_id.eq.${currentUser.id}`),
+    supabase.from("friend_requests").select("sender_id,receiver_id,status").eq("status","pending").or(`sender_id.eq.${currentUser.id},receiver_id.eq.${currentUser.id}`),
+    supabase.from("blocked_users").select("blocker_id,blocked_id").or(`blocker_id.eq.${currentUser.id},blocked_id.eq.${currentUser.id}`)
+  ]);
+  const isFriend=new Set((friendships.data||[]).map(f=>f.user_low_id===currentUser.id?f.user_high_id:f.user_low_id));
+  const pending=new Map((requests.data||[]).map(r=>[r.sender_id===currentUser.id?r.receiver_id:r.sender_id,r.sender_id===currentUser.id?"Sent":"Received"]));
+  const blocked=new Set((blocks.data||[]).map(b=>b.blocker_id===currentUser.id?b.blocked_id:b.blocker_id));
+  result.innerHTML=data.map(p=>{
+    let action='<button class="friend-action add" data-friend-action="send" data-user-id="'+p.id+'">Add Friend</button>';
+    if(isFriend.has(p.id)) action='<span class="friend-state">Friends</span>';
+    else if(blocked.has(p.id)) action='<span class="friend-state">Unavailable</span>';
+    else if(pending.has(p.id)) action='<span class="friend-state">'+pending.get(p.id)+'</span>';
+    return friendRow(p,action);
+  }).join("");
+}
+async function handleFriendAction(button) {
+  const action=button.dataset.friendAction;
+  const userId=button.dataset.userId;
+  const requestId=button.dataset.requestId;
+  button.disabled=true;
+  try {
+    let result;
+    if(action==="send") result=await supabase.rpc("send_friend_request",{target_user:userId});
+    if(action==="accept") result=await supabase.rpc("respond_friend_request",{request_id:requestId,accept_request:true});
+    if(action==="decline") result=await supabase.rpc("respond_friend_request",{request_id:requestId,accept_request:false});
+    if(action==="cancel") result=await supabase.rpc("cancel_friend_request",{request_id:requestId});
+    if(action==="remove") result=await supabase.rpc("remove_friend",{target_user:userId});
+    if(action==="block") result=await supabase.rpc("block_user",{target_user:userId});
+    if(action==="unblock") result=await supabase.rpc("unblock_user",{target_user:userId});
+    if(result?.error) throw result.error;
+    if(action==="send") { button.textContent="Request Sent"; button.disabled=true; button.classList.add("completed"); return; }
+    await loadFriendsTab(friendsTab);
+  } catch(error) {
+    button.disabled=false;
+    window.alert(error.message||"That action could not be completed.");
+  }
 }
 
 let currentUser = null;
@@ -199,6 +310,10 @@ forgotPasswordButton.addEventListener("click", async () => {
 });
 
 document.addEventListener("click", (event) => {
+  const friendTabButton=event.target.closest("[data-friends-tab]");
+  if(friendTabButton){loadFriendsTab(friendTabButton.dataset.friendsTab);return;}
+  const friendActionButton=event.target.closest("[data-friend-action]");
+  if(friendActionButton){handleFriendAction(friendActionButton);return;}
   const sectionButton = event.target.closest("[data-section]");
   if (sectionButton) {
     renderSection(sectionButton.dataset.section);
@@ -208,6 +323,12 @@ document.addEventListener("click", (event) => {
   if (!event.target.closest(".account-bar")) closeAccountMenu();
 });
 
+document.addEventListener("submit",(event)=>{
+  if(event.target.id==="friend-search-form"){
+    event.preventDefault();
+    searchFriendProfiles($("#friend-search-input").value);
+  }
+});
 $("#account-menu-button").addEventListener("click", () => {
   const menu = $("#account-menu");
   const willOpen = menu.hidden;
