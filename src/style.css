@@ -156,3 +156,50 @@ svg{width:20px;height:20px;display:block;fill:none;stroke:currentColor;stroke-wi
   .auth-switch{line-height:1.6}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Friends feature */
+.friends-shell{width:100%;max-width:980px;border:1px solid #42444b;border-radius:8px;background:#2b2d31;overflow:hidden}
+.friends-tabs{min-height:54px;padding:8px 12px;display:flex;align-items:center;gap:5px;border-bottom:1px solid #42444b;overflow-x:auto}
+.friends-tab{flex-shrink:0;padding:8px 12px;border:0;border-radius:4px;background:transparent;color:#b5bac1;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,color .15s}
+.friends-tab:hover{background:#383a40;color:#fff}
+.friends-tab.active{background:#404249;color:#fff}
+.friends-tab.add-friend-tab{margin-left:auto;background:#248046;color:#fff}
+.friends-tab.add-friend-tab:hover{background:#1f713d}
+.friends-panel{min-height:260px;padding:18px}
+.friends-loading,.friend-empty-note{padding:28px 12px;color:#b5bac1;text-align:center;font-size:13px}
+.friend-empty-note.centered{padding:70px 15px}
+.friend-list-heading{margin:3px 0 10px;color:#b5bac1;font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.outgoing-heading{margin-top:26px}
+.friend-list{display:grid;gap:5px}
+.friend-row{min-height:64px;padding:9px 10px;display:flex;align-items:center;gap:12px;border-radius:6px;background:#313338;transition:background .14s}
+.friend-row:hover{background:#383a40}
+.friend-avatar{width:38px;height:38px;flex-shrink:0;display:grid;place-items:center;border-radius:50%;background:linear-gradient(145deg,#5865f2,#8b79e8);color:white;font-weight:700}
+.friend-identity{min-width:0;flex:1;display:grid;gap:3px}
+.friend-identity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.friend-identity span{color:#949ba4;font-size:11px}
+.friend-actions{display:flex;align-items:center;justify-content:flex-end;gap:6px;flex-wrap:wrap}
+.friend-action{min-height:30px;padding:0 10px;border:1px solid #4a4d55;border-radius:4px;background:#383a40;color:#dbdee1;font-size:11px;font-weight:650;cursor:pointer;transition:background .14s,border-color .14s}
+.friend-action:hover{background:#454851;border-color:#656a76}
+.friend-action.add,.friend-action.accept{border-color:#248046;background:#248046;color:#fff}
+.friend-action.add:hover,.friend-action.accept:hover{background:#1f713d}
+.friend-action.danger{color:#f0a3a5}
+.friend-action:disabled{opacity:.55;cursor:not-allowed}
+.friend-action.completed{background:#248046;color:#fff}
+.friend-state{padding:0 7px;color:#b5bac1;font-size:11px}
+.add-friend-panel h2{margin:0 0 7px;font-size:18px}
+.add-friend-panel>p{margin:0 0 18px;color:#b5bac1;font-size:13px}
+.friend-search-form{display:flex;gap:8px}
+.friend-search-form input{height:38px;min-width:0;flex:1;padding:0 11px;border:1px solid #1e1f22;border-radius:4px;background:#1e1f22;color:#f2f3f5;font-size:13px}
+.friend-search-form .section-action{height:38px}
+#friend-search-results{margin-top:16px}
+.friend-error{padding:20px;color:#f0a3a5;font-size:13px}
+@media(max-width:560px){
+ .friends-tabs{gap:3px;padding:8px}
+ .friends-tab{padding:8px 10px;font-size:12px}
+ .friends-panel{padding:12px}
+ .friend-row{align-items:flex-start;flex-wrap:wrap}
+ .friend-identity{padding-top:3px}
+ .friend-actions{width:100%;padding-left:50px;justify-content:flex-start}
+ .friend-search-form{flex-direction:column}
+ .friend-search-form .section-action{width:100%}
+}
