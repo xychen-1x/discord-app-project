@@ -69,3 +69,31 @@ button{color:inherit}
 .section-empty{padding-top:12px}
 @media(max-width:760px){.workspace{grid-template-columns:58px 190px minmax(0,1fr)}.side-panel .workspace-title{padding:0 13px}.nav-group{padding-inline:7px}.nav-item{padding-inline:9px}.home-content{padding:40px 22px}.quick-grid{grid-template-columns:1fr}}
 @media(max-width:540px){.auth-card{padding:30px 23px 25px}.workspace{grid-template-columns:54px minmax(0,1fr)}.side-panel{display:none}.main-header{padding:0 17px}.home-content{padding:38px 18px}.quick-grid{grid-template-columns:1fr}}
+
+/* Interaction and responsive refinements */
+.password-toggle{overflow:hidden;transition:background .18s ease,color .18s ease,transform .18s ease}
+.password-toggle:active{transform:scale(.92)}
+.password-toggle .eye-slash{opacity:1;stroke-dasharray:24;stroke-dashoffset:0;transform-origin:center;transition:opacity .2s ease,stroke-dashoffset .24s ease,transform .24s ease}
+.password-toggle.is-visible .eye-slash{opacity:0;stroke-dashoffset:24;transform:scale(.82)}
+.password-toggle svg{transition:transform .2s ease}
+.password-toggle.is-visible svg{transform:scale(1.04)}
+.nav-icon svg{width:17px;height:17px;display:block;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.nav-item{transition:background .16s ease,color .16s ease}
+.nav-item:focus-visible,.mobile-nav-item:focus-visible,.password-toggle:focus-visible,.primary-button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.home-content{flex:1;overscroll-behavior:contain}
+.mobile-nav{display:none}
+@media(max-width:540px){
+  .workspace{grid-template-columns:54px minmax(0,1fr);min-height:0}
+  .side-panel{display:none}
+  .main-panel{min-height:0}
+  .main-header{height:54px;padding:0 17px}
+  .home-content{padding:30px 18px 24px}
+  .mobile-nav{display:flex;flex-shrink:0;justify-content:space-around;align-items:center;gap:4px;padding:7px 10px calc(7px + env(safe-area-inset-bottom));border-top:1px solid #30343e;background:#20232b}
+  .mobile-nav-item{min-width:74px;min-height:48px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border:0;border-radius:8px;background:transparent;color:#929aaa;font-size:10px;cursor:pointer}
+  .mobile-nav-item .nav-icon svg{width:19px;height:19px}
+  .mobile-nav-item.selected{background:#343b50;color:#dfe5ff}
+  .mobile-nav-item:active{transform:scale(.97)}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
