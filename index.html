@@ -3,48 +3,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#090b12" />
-    <meta name="description" content="A new space for conversations and communities." />
-    <title>Orbit — Find your space</title>
+    <meta name="theme-color" content="#17191f" />
+    <meta name="description" content="Orbit communication workspace." />
+    <title>Orbit</title>
   </head>
   <body>
     <div id="app">
-      <main class="shell">
-        <nav class="topbar">
-          <a class="brand" href="/" aria-label="Orbit home"><span class="brand-mark">O</span> orbit</a>
-          <span class="top-note">A space for every conversation</span>
-        </nav>
-        <section class="hero">
-          <div class="eyebrow"><span class="pulse"></span> YOUR SPACE, YOUR PEOPLE</div>
-          <h1>Conversations<br /><span>without boundaries.</span></h1>
-          <p class="intro">Bring your friends together, build communities, and make room for the things you care about.</p>
-          <div class="actions">
-            <button id="get-started" class="button button-primary">Get started <span aria-hidden="true">↗</span></button>
-            <button id="sign-in" class="button button-secondary">Sign in</button>
+      <main id="auth-screen" class="auth-screen">
+        <section class="auth-card">
+          <a class="brand auth-brand" href="/" aria-label="Orbit"><span class="brand-mark">o</span><span>orbit</span></a>
+          <div class="auth-heading">
+            <h1 id="auth-title">Welcome back</h1>
+            <p id="auth-description">Sign in to continue to Orbit.</p>
           </div>
-          <p id="connection-status" class="status" role="status">Preparing your space…</p>
+          <form id="auth-form">
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
+            <label for="password">Password</label>
+            <div class="password-field">
+              <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" placeholder="Enter your password" required />
+              <button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/></svg>
+              </button>
+            </div>
+            <button id="auth-submit" class="primary-button" type="submit">Sign in</button>
+            <p id="auth-message" class="form-message" role="status" aria-live="polite"></p>
+          </form>
+          <p class="auth-switch"><span id="auth-switch-copy">New to Orbit?</span> <button id="auth-switch" type="button">Create an account</button></p>
         </section>
-        <section class="feature-grid" aria-label="Platform foundations">
-          <article class="feature"><span class="feature-icon">✳</span><h2>Your people</h2><p>Friends, direct messages, and group conversations.</p></article>
-          <article class="feature"><span class="feature-icon">⌘</span><h2>Your communities</h2><p>Build spaces with channels, roles, and shared interests.</p></article>
-          <article class="feature"><span class="feature-icon">◉</span><h2>Your control</h2><p>Privacy and safety designed into the foundation.</p></article>
-        </section>
-        <footer><span>ORBIT · EARLY FOUNDATION</span><span>Built for people, shaped by communities.</span></footer>
       </main>
-      <dialog id="auth-dialog" class="auth-dialog">
-        <form method="dialog" class="dialog-close"><button aria-label="Close">×</button></form>
-        <p class="eyebrow">ACCOUNT ACCESS</p>
-        <h2 id="auth-title">Welcome</h2>
-        <p id="auth-description" class="dialog-copy">Account creation will be enabled after the authentication flow is configured.</p>
-        <form id="auth-form">
-          <label for="email">Email address</label>
-          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
-          <label for="password">Password</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" placeholder="At least 8 characters" required />
-          <button id="auth-submit" class="button button-primary" type="submit">Continue</button>
-          <p id="auth-message" class="form-message" role="status"></p>
-        </form>
-      </dialog>
+
+      <main id="workspace" class="workspace" hidden>
+        <aside class="server-rail" aria-label="Workspaces">
+          <a class="rail-logo" href="#" aria-label="Orbit home">o</a>
+          <div class="rail-divider"></div>
+          <button class="server-icon active" aria-label="Orbit workspace">O</button>
+          <button class="server-add" aria-label="Add a workspace" disabled>+</button>
+          <div class="rail-bottom"><button id="rail-settings" class="rail-settings" aria-label="Settings">⚙</button></div>
+        </aside>
+        <aside class="side-panel">
+          <div class="workspace-title"><span>Orbit</span><span class="workspace-chevron">⌄</span></div>
+          <div class="nav-group">
+            <button class="nav-item selected" data-section="Home"><span class="nav-icon">⌂</span>Home</button>
+            <button class="nav-item" data-section="Friends"><span class="nav-icon">♧</span>Friends</button>
+            <button class="nav-item" data-section="Messages"><span class="nav-icon">▤</span>Messages</button>
+          </div>
+          <div class="side-label">YOUR COMMUNITIES</div>
+          <div class="empty-communities">No communities yet</div>
+          <div class="side-bottom">
+            <div class="user-avatar" id="user-avatar">O</div>
+            <div class="user-meta"><strong id="user-name">Your account</strong><span id="user-status">Online</span></div>
+            <button id="logout" class="logout-button" aria-label="Sign out" title="Sign out">↪</button>
+          </div>
+        </aside>
+        <section class="main-panel">
+          <header class="main-header"><div id="page-title">Home</div><div class="header-actions"><span class="online-dot"></span><span>Online</span></div></header>
+          <div class="home-content" id="home-content">
+            <div class="welcome-block"><p class="welcome-kicker">ORBIT</p><h1>Welcome in.</h1><p>Your space starts here.</p></div>
+            <div class="quick-grid">
+              <article class="quick-card"><span class="quick-symbol">♧</span><div><h2>Friends</h2><p>Your people will appear here.</p></div></article>
+              <article class="quick-card"><span class="quick-symbol">▤</span><div><h2>Messages</h2><p>Your conversations will appear here.</p></div></article>
+              <article class="quick-card"><span class="quick-symbol">◈</span><div><h2>Communities</h2><p>Your communities will appear here.</p></div></article>
+            </div>
+          </div>
+        </section>
+      </main>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>
