@@ -100,9 +100,9 @@ document.querySelector("#logout").addEventListener("click", async () => {
   showAuth();
 });
 
-document.querySelectorAll(".nav-item").forEach((button) => {
+document.querySelectorAll(".nav-item, .mobile-nav-item").forEach((button) => {
   button.addEventListener("click", () => {
-    document.querySelectorAll(".nav-item").forEach((item) => item.classList.remove("selected"));
+    document.querySelectorAll(".nav-item, .mobile-nav-item").forEach((item) => item.classList.remove("selected"));
     button.classList.add("selected");
     const section = button.dataset.section;
     document.querySelector("#page-title").textContent = section;
