@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090b12" />
+    <meta name="description" content="A new space for conversations and communities." />
+    <title>Orbit — Find your space</title>
+  </head>
+  <body>
+    <div id="app">
+      <main class="shell">
+        <nav class="topbar">
+          <a class="brand" href="/" aria-label="Orbit home"><span class="brand-mark">O</span> orbit</a>
+          <span class="top-note">A space for every conversation</span>
+        </nav>
+        <section class="hero">
+          <div class="eyebrow"><span class="pulse"></span> YOUR SPACE, YOUR PEOPLE</div>
+          <h1>Conversations<br /><span>without boundaries.</span></h1>
+          <p class="intro">Bring your friends together, build communities, and make room for the things you care about.</p>
+          <div class="actions">
+            <button id="get-started" class="button button-primary">Get started <span aria-hidden="true">↗</span></button>
+            <button id="sign-in" class="button button-secondary">Sign in</button>
+          </div>
+          <p id="connection-status" class="status" role="status">Preparing your space…</p>
+        </section>
+        <section class="feature-grid" aria-label="Platform foundations">
+          <article class="feature"><span class="feature-icon">✳</span><h2>Your people</h2><p>Friends, direct messages, and group conversations.</p></article>
+          <article class="feature"><span class="feature-icon">⌘</span><h2>Your communities</h2><p>Build spaces with channels, roles, and shared interests.</p></article>
+          <article class="feature"><span class="feature-icon">◉</span><h2>Your control</h2><p>Privacy and safety designed into the foundation.</p></article>
+        </section>
+        <footer><span>ORBIT · EARLY FOUNDATION</span><span>Built for people, shaped by communities.</span></footer>
+      </main>
+      <dialog id="auth-dialog" class="auth-dialog">
+        <form method="dialog" class="dialog-close"><button aria-label="Close">×</button></form>
+        <p class="eyebrow">ACCOUNT ACCESS</p>
+        <h2 id="auth-title">Welcome</h2>
+        <p id="auth-description" class="dialog-copy">Account creation will be enabled after the authentication flow is configured.</p>
+        <form id="auth-form">
+          <label for="email">Email address</label>
+          <input id="email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" placeholder="At least 8 characters" required />
+          <button id="auth-submit" class="button button-primary" type="submit">Continue</button>
+          <p id="auth-message" class="form-message" role="status"></p>
+        </form>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
