@@ -120,7 +120,7 @@ async function loadFriendsTab(tab = friendsTab) {
   document.querySelectorAll("[data-friends-tab]").forEach((button) => button.classList.toggle("active",button.dataset.friendsTab===tab));
   try {
     if (tab === "add") {
-      panel.innerHTML = '<div class="add-friend-panel"><h2>Add Friend</h2><p>You can add friends with their Orbit username.</p><form id="friend-search-form" class="friend-search-form"><input id="friend-search-input" type="search" autocomplete="off" maxlength="32" placeholder="Enter a username" aria-label="Search username" required><button class="section-action" type="submit">Search</button></form><div id="friend-search-results" class="friend-list"></div></div>';
+      panel.innerHTML = '<div class="add-friend-panel"><h2>Add Friend</h2><p>Search by Orbit username or display name.</p><form id="friend-search-form" class="friend-search-form"><input id="friend-search-input" type="search" autocomplete="off" maxlength="32" placeholder="Enter a username" aria-label="Search username" required><button class="section-action" type="submit">Search</button></form><div id="friend-search-results" class="friend-list"></div></div>';
       return;
     }
     if (tab === "pending") {
@@ -165,8 +165,9 @@ async function searchFriendProfiles(query) {
   const result=$("#friend-search-results");
   if(!result || !query.trim()) { if(result) result.innerHTML=""; return; }
   result.innerHTML='<p class="friends-loading">Searching…</p>';
-  const safe=query.trim().replace(/[,%()]/g,"");
-  const {data,error}=await supabase.from("profiles").select("id,username,display_name,avatar_url").ilike("username",safe).neq("id",currentUser.id).limit(12);
+  const safe=query.trim().replace(/[,%()\\\\]/g,"");
+  const pattern=`%${safe}%`;
+  const {data,error}=await supabase.from("profiles").select("id,username,display_name,avatar_url").or(`username.ilike.${pattern},display_name.ilike.${pattern}`).neq("id",currentUser.id).limit(12);
   if(error) { result.innerHTML=`<p class="friend-error">${escapeHtml(error.message)}</p>`; return; }
   if(!data?.length) { result.innerHTML='<p class="friend-empty-note">No users found. Check the username and try again.</p>'; return; }
   const ids=data.map(p=>p.id);
