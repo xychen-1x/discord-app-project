@@ -15,6 +15,7 @@ const message = $("#auth-message");
 const switchButton = $("#auth-switch");
 const switchCopy = $("#auth-switch-copy");
 const displayNameField = $("#display-name-field");
+const usernameField = $("#username-field");
 const confirmPasswordField = $("#confirm-password-field");
 const confirmPasswordInput = $("#confirm-password");
 const forgotPasswordButton = $("#forgot-password");
@@ -37,6 +38,8 @@ function setAuthMode(mode) {
   switchButton.textContent = signup ? "Log In" : "Register";
   passwordInput.autocomplete = signup ? "new-password" : "current-password";
   displayNameField.hidden = !signup;
+  usernameField.hidden = !signup;
+  $("#username").required = signup;
   confirmPasswordField.hidden = !signup;
   confirmPasswordInput.required = signup;
   forgotPasswordButton.hidden = signup;
@@ -64,6 +67,7 @@ function showWorkspace(user) {
   $("#user-name").textContent = name;
   $("#user-avatar").textContent = name.slice(0, 1).toUpperCase();
   renderSection(activeSection);
+  loadAccountProfile();
 }
 
 function setPasswordVisibility(visible) {
@@ -85,17 +89,15 @@ function renderSection(section) {
     Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div></section><section class="friends-shell"><div class="friends-tabs" role="tablist" aria-label="Friends"><button class="friends-tab active" data-friends-tab="all">All</button><button class="friends-tab" data-friends-tab="online">Online</button><button class="friends-tab" data-friends-tab="pending">Pending</button><button class="friends-tab" data-friends-tab="blocked">Blocked</button><button class="friends-tab add-friend-tab" data-friends-tab="add">Add Friend</button></div><div id="friends-panel" class="friends-panel"><div class="friends-loading">Loading friends…</div></div></section>`,
     Messages: `<section class="section-heading"><div><p class="welcome-kicker">PRIVATE CONVERSATIONS</p><h1>Messages</h1><p>Your direct and group conversations.</p></div></section><section class="feature-empty"><span class="empty-illustration">${icon.messages}</span><h2>No conversations yet</h2><p>Your direct messages and group chats will appear here once messaging is implemented.</p></section>`,
     Communities: `<section class="section-heading"><div><p class="welcome-kicker">FIND YOUR PEOPLE</p><h1>Communities</h1><p>Places to talk about what you enjoy.</p></div><button class="section-action" type="button" disabled title="Community creation is part of the next feature build">Create Community</button></section><section class="feature-empty"><span class="empty-illustration">${icon.communities}</span><h2>Make a place of your own</h2><p>Community discovery, creation, invites, and channels will be connected in the Communities feature build.</p></section>`,
-    Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and app preferences.</p></div></section><section class="settings-list"><div class="settings-row"><div><strong>Account</strong><p>Signed in as <span id="settings-email"></span></p></div><span class="settings-tag">Connected</span></div><div class="settings-row"><div><strong>Appearance</strong><p>Orbit currently uses its dark theme.</p></div><span class="settings-tag">Dark</span></div><div class="settings-row"><div><strong>Privacy & Safety</strong><p>Privacy controls will be added with the account settings feature.</p></div><span class="settings-tag">Coming later</span></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button></section>`,
+    Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and profile.</p></div></section><div class="settings-layout"><nav class="settings-nav" aria-label="Settings"><button class="settings-nav-item active" data-settings-tab="account">My Account</button><button class="settings-nav-item" data-settings-tab="profile">Profiles</button><button class="settings-nav-item" data-settings-tab="appearance">Appearance</button><button class="settings-nav-item" data-settings-tab="privacy">Privacy &amp; Safety</button><button class="settings-nav-item" data-settings-tab="notifications">Notifications</button></nav><section id="settings-panel" class="settings-panel"><p class="friends-loading">Loading account settings…</p></section></div>`,
     Help: `<section class="section-heading"><div><p class="welcome-kicker">ORBIT SUPPORT</p><h1>Help & Support</h1><p>Find guidance for using Orbit.</p></div></section><section class="feature-empty"><h2>Support resources are being prepared</h2><p>Help articles and support contact options will be available before public launch.</p></section>`
   };
   content.innerHTML = views[section] || views.Home;
   content.focus({ preventScroll: true });
   const user = currentUser;
-  const settingsEmail = $("#settings-email");
-  if (settingsEmail) settingsEmail.textContent = user?.email || "Not available";
+  if (section === "Settings") loadSettingsTab("account");
   if (section === "Friends") loadFriendsTab("all");
-  const settingsLogout = $("#settings-logout");
-  if (settingsLogout) settingsLogout.addEventListener("click", signOut);
+  
   closeMobileSidebar();
 }
 
@@ -210,6 +212,147 @@ async function handleFriendAction(button) {
   }
 }
 
+
+// Account & Profile
+let accountProfile = null;
+let settingsTab = "account";
+let usernameCheckTimer = null;
+
+async function loadAccountProfile() {
+  if (!supabase || !currentUser) return;
+  const { data, error } = await supabase.from("profiles")
+    .select("id,username,display_name,avatar_url,bio,created_at")
+    .eq("id", currentUser.id).single();
+  if (error) {
+    console.error("Profile load failed:", error);
+    return;
+  }
+  accountProfile = data;
+  $("#user-name").textContent = data.display_name || data.username || currentUser.email || "Orbit user";
+  $("#user-avatar").textContent = (data.display_name || data.username || "O").slice(0,1).toUpperCase();
+  if (activeSection === "Settings") loadSettingsTab(settingsTab);
+}
+
+function loadSettingsTab(tab = settingsTab) {
+  settingsTab = tab;
+  const panel = $("#settings-panel");
+  if (!panel) return;
+  document.querySelectorAll("[data-settings-tab]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.settingsTab === tab);
+  });
+  const profile = accountProfile || {};
+  if (tab === "account") {
+    panel.innerHTML = `<div class="settings-panel-heading"><h2>My Account</h2><p>Manage your sign-in details and account security.</p></div>
+      <form id="account-email-form" class="settings-form"><div class="form-field"><label>EMAIL ADDRESS</label><input type="email" value="${escapeHtml(currentUser?.email || "")}" disabled></div><p class="settings-help">Email address changes require confirmation from your inbox.</p><label for="new-email">NEW EMAIL ADDRESS</label><input id="new-email" type="email" autocomplete="email" placeholder="new@email.com"><button class="section-action" type="submit">Update Email</button><p id="email-form-message" class="settings-message" role="status"></p></form>
+      <form id="password-change-form" class="settings-form"><h3>Change Password</h3><label for="new-password">NEW PASSWORD</label><input id="new-password" type="password" minlength="8" autocomplete="new-password" placeholder="At least 8 characters" required><label for="confirm-new-password">CONFIRM NEW PASSWORD</label><input id="confirm-new-password" type="password" minlength="8" autocomplete="new-password" placeholder="Enter it again" required><button class="section-action" type="submit">Change Password</button><p id="password-form-message" class="settings-message" role="status"></p></form>
+      <div class="settings-info-row"><span>Account ID</span><code>${escapeHtml(currentUser?.id || "")}</code></div><button id="settings-logout" class="settings-logout" type="button">Log Out</button>`;
+  } else if (tab === "profile") {
+    panel.innerHTML = `<div class="settings-panel-heading"><h2>Profiles</h2><p>This is how other people see you on Orbit.</p></div>
+      <div class="profile-preview"><div class="profile-preview-avatar">${escapeHtml((profile.display_name || "O").slice(0,1).toUpperCase())}</div><div><strong id="profile-preview-name">${escapeHtml(profile.display_name || "Your display name")}</strong><span id="profile-preview-username">@${escapeHtml(profile.username || "username")}</span></div></div>
+      <form id="profile-edit-form" class="settings-form"><label for="profile-display-name">DISPLAY NAME</label><input id="profile-display-name" type="text" maxlength="32" value="${escapeHtml(profile.display_name || "")}" required placeholder="Your display name"><label for="profile-username">USERNAME</label><div class="username-input-wrap"><span>@</span><input id="profile-username" type="text" minlength="3" maxlength="20" pattern="[a-z0-9_]{3,20}" autocapitalize="none" autocomplete="username" value="${escapeHtml(profile.username || "")}" required placeholder="username"></div><p id="username-availability" class="settings-help">3–20 characters: lowercase letters, numbers, underscores.</p><label for="profile-bio">ABOUT ME</label><textarea id="profile-bio" maxlength="190" rows="4" placeholder="Tell people a little about yourself…">${escapeHtml(profile.bio || "")}</textarea><div class="bio-counter"><span>Up to 190 characters</span><span id="bio-count">${(profile.bio || "").length}/190</span></div><button class="section-action" type="submit">Save Changes</button><p id="profile-form-message" class="settings-message" role="status"></p></form>`;
+  } else if (tab === "appearance") {
+    panel.innerHTML = `<div class="settings-panel-heading"><h2>Appearance</h2><p>Choose how Orbit looks on this device.</p></div><div class="settings-info-row"><div><strong>Dark theme</strong><p>Orbit's current interface theme.</p></div><span class="settings-tag">Active</span></div>`;
+  } else {
+    const label = tab === "privacy" ? "Privacy & Safety" : "Notifications";
+    panel.innerHTML = `<div class="settings-panel-heading"><h2>${label}</h2><p>These controls will be connected as their supporting systems are completed.</p></div><div class="settings-info-row"><span>${label} settings</span><span class="settings-tag">Not available yet</span></div>`;
+  }
+}
+
+async function checkProfileUsername() {
+  const input = $("#profile-username");
+  const status = $("#username-availability");
+  if (!input || !status) return;
+  const username = input.value.trim().toLowerCase();
+  if (!/^[a-z0-9_]{3,20}$/.test(username)) {
+    status.textContent = "Use 3–20 lowercase letters, numbers, or underscores.";
+    status.dataset.state = "error";
+    return;
+  }
+  if (username === accountProfile?.username) {
+    status.textContent = "This is your current username.";
+    status.dataset.state = "success";
+    return;
+  }
+  status.textContent = "Checking availability…";
+  status.dataset.state = "pending";
+  const { data, error } = await supabase.rpc("is_username_available", { requested_username: username });
+  if (error) {
+    status.textContent = "Could not check username availability.";
+    status.dataset.state = "error";
+  } else {
+    status.textContent = data ? "Username is available." : "That username is already taken.";
+    status.dataset.state = data ? "success" : "error";
+  }
+}
+
+document.addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-settings-tab]");
+  if (tab) loadSettingsTab(tab.dataset.settingsTab);
+});
+
+document.addEventListener("input", (event) => {
+  if (event.target.id === "profile-username") {
+    const value = event.target.value;
+    $("#profile-preview-username").textContent = "@" + value.toLowerCase();
+    clearTimeout(usernameCheckTimer);
+    usernameCheckTimer = setTimeout(checkProfileUsername, 450);
+  }
+  if (event.target.id === "profile-display-name") {
+    $("#profile-preview-name").textContent = event.target.value || "Your display name";
+    $("#profile-preview-avatar").textContent = (event.target.value || "O").slice(0,1).toUpperCase();
+  }
+  if (event.target.id === "profile-bio") $("#bio-count").textContent = event.target.value.length + "/190";
+});
+
+document.addEventListener("submit", async (event) => {
+  if (event.target.id === "profile-edit-form") {
+    event.preventDefault();
+    const button = event.target.querySelector('button[type="submit"]');
+    const status = $("#profile-form-message");
+    button.disabled = true;
+    status.textContent = "Saving…";
+    const values = {
+      requested_username: $("#profile-username").value.trim().toLowerCase(),
+      requested_display_name: $("#profile-display-name").value.trim(),
+      requested_bio: $("#profile-bio").value.trim()
+    };
+    const { error } = await supabase.rpc("update_my_profile", values);
+    button.disabled = false;
+    if (error) {
+      status.textContent = error.message || "Unable to save profile.";
+      status.dataset.state = "error";
+      return;
+    }
+    status.textContent = "Profile updated.";
+    status.dataset.state = "success";
+    await loadAccountProfile();
+    loadSettingsTab("profile");
+  }
+  if (event.target.id === "account-email-form") {
+    event.preventDefault();
+    const status = $("#email-form-message");
+    const email = $("#new-email").value.trim();
+    if (!email) { status.textContent = "Enter a new email address."; return; }
+    const { error } = await supabase.auth.updateUser({ email });
+    status.textContent = error ? error.message : "Check your new email address to confirm the change.";
+    status.dataset.state = error ? "error" : "success";
+  }
+  if (event.target.id === "password-change-form") {
+    event.preventDefault();
+    const status = $("#password-form-message");
+    const password = $("#new-password").value;
+    if (password !== $("#confirm-new-password").value) {
+      status.textContent = "The passwords do not match.";
+      status.dataset.state = "error";
+      return;
+    }
+    const { error } = await supabase.auth.updateUser({ password });
+    status.textContent = error ? error.message : "Password updated successfully.";
+    status.dataset.state = error ? "error" : "success";
+    if (!error) event.target.reset();
+  }
+});
+
 let currentUser = null;
 async function signOut() {
   closeAccountMenu();
@@ -250,6 +393,11 @@ form.addEventListener("submit", async (event) => {
   }
   const email = emailInput.value.trim();
   const password = passwordInput.value;
+  if (authMode === "signup" && !/^[a-z0-9_]{3,20}$/.test($("#username").value.trim().toLowerCase())) {
+    message.textContent = "Username must be 3–20 characters using lowercase letters, numbers, or underscores.";
+    $("#username").focus();
+    return;
+  }
   if (authMode === "signup" && password !== confirmPasswordInput.value) {
     message.textContent = "Your passwords do not match.";
     confirmPasswordInput.focus();
@@ -262,7 +410,7 @@ form.addEventListener("submit", async (event) => {
       ? await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: $("#display-name").value.trim() || email.split("@")[0] } }
+          options: { data: { display_name: $("#display-name").value.trim() || email.split("@")[0], username: $("#username").value.trim().toLowerCase() } }
         })
       : await supabase.auth.signInWithPassword({ email, password });
     if (result.error) throw result.error;
