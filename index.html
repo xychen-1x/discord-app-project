@@ -1,79 +1,123 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#17191f" />
-    <meta name="description" content="Orbit communication workspace." />
-    <title>Orbit</title>
-  </head>
-  <body>
-    <div id="app">
-      <main id="auth-screen" class="auth-screen">
-        <section class="auth-card">
-          <a class="brand auth-brand" href="/" aria-label="Orbit"><span class="brand-mark">o</span><span>orbit</span></a>
-          <div class="auth-heading">
-            <h1 id="auth-title">Welcome back</h1>
-            <p id="auth-description">Sign in to continue to Orbit.</p>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#1e1f22" />
+  <meta name="description" content="Orbit — a place to talk, share, and build communities." />
+  <title>Orbit</title>
+</head>
+<body>
+  <div id="app">
+    <main id="auth-screen" class="auth-screen">
+      <div class="auth-backdrop" aria-hidden="true"></div>
+      <section class="auth-card" aria-labelledby="auth-title">
+        <a class="brand auth-brand" href="/" aria-label="Orbit home">
+          <span class="brand-mark">O</span><span class="brand-name">orbit</span>
+        </a>
+        <div class="auth-heading">
+          <h1 id="auth-title">Welcome back!</h1>
+          <p id="auth-description">We're so excited to see you again!</p>
+        </div>
+        <form id="auth-form" novalidate>
+          <div id="display-name-field" class="form-field" hidden>
+            <label for="display-name">DISPLAY NAME <span class="optional-label">OPTIONAL</span></label>
+            <input id="display-name" name="displayName" type="text" autocomplete="nickname" maxlength="32" placeholder="How should we call you?" />
           </div>
-          <form id="auth-form">
-            <label for="email">Email</label>
+          <div class="form-field">
+            <label for="email">EMAIL</label>
             <input id="email" name="email" type="email" autocomplete="email" placeholder="name@example.com" required />
-            <label for="password">Password</label>
+          </div>
+          <div class="form-field">
+            <div class="field-label-row">
+              <label for="password">PASSWORD</label>
+              <button id="forgot-password" class="text-link forgot-link" type="button">Forgot your password?</button>
+            </div>
             <div class="password-field">
               <input id="password" name="password" type="password" autocomplete="current-password" minlength="8" placeholder="Enter your password" required />
               <button id="password-toggle" class="password-toggle" type="button" aria-label="Show password" aria-pressed="false">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.4-6 9.5-6 9.5 6 9.5 6-3.4 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.7"/><path class="eye-slash" d="M4 4 20 20"/></svg>
               </button>
             </div>
-            <button id="auth-submit" class="primary-button" type="submit">Sign in</button>
-            <p id="auth-message" class="form-message" role="status" aria-live="polite"></p>
-          </form>
-          <p class="auth-switch"><span id="auth-switch-copy">New to Orbit?</span> <button id="auth-switch" type="button">Create an account</button></p>
-        </section>
-      </main>
+          </div>
+          <div id="confirm-password-field" class="form-field" hidden>
+            <label for="confirm-password">CONFIRM PASSWORD</label>
+            <input id="confirm-password" name="confirmPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Enter your password again" />
+          </div>
+          <button id="auth-submit" class="primary-button" type="submit">Log In</button>
+          <p id="auth-message" class="form-message" role="status" aria-live="polite"></p>
+        </form>
+        <p class="auth-switch"><span id="auth-switch-copy">Need an account?</span> <button id="auth-switch" class="text-link" type="button">Register</button></p>
+        <p class="auth-legal">By continuing, you agree to use Orbit respectfully and follow community rules.</p>
+      </section>
+    </main>
 
-      <main id="workspace" class="workspace" hidden>
-        <aside class="server-rail" aria-label="Workspaces">
-          <a class="rail-logo" href="#" aria-label="Orbit home">o</a>
-          <div class="rail-divider"></div>
-          <button class="server-icon active" aria-label="Orbit workspace">O</button>
-          <button class="server-add" aria-label="Add a workspace" disabled>+</button>
-          <div class="rail-bottom"><button id="rail-settings" class="rail-settings" aria-label="Settings">⚙</button></div>
-        </aside>
-        <aside class="side-panel">
-          <div class="workspace-title"><span>Orbit</span><span class="workspace-chevron">⌄</span></div>
+    <main id="workspace" class="workspace" hidden>
+      <aside class="server-rail" aria-label="Servers and direct messages">
+        <a class="rail-logo" href="#" aria-label="Orbit home">O</a>
+        <div class="rail-divider"></div>
+        <button class="server-icon active" data-section="Home" aria-label="Home" title="Home">O</button>
+        <button class="server-add" id="create-community-shortcut" aria-label="Create or join a community" title="Communities">+</button>
+        <div class="rail-bottom">
+          <button id="rail-settings" class="rail-tool" aria-label="Settings" title="Settings">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1 1.1.9-1.5 2.6-1.4-.5a7.8 7.8 0 0 1-1.5.9l-.2 1.5h-3l-.2-1.5a7.8 7.8 0 0 1-1.5-.9l-1.4.5-1.5-2.6 1.1-.9a7 7 0 0 1 0-1.8l-1.1-.9 1.5-2.6 1.4.5a7.8 7.8 0 0 1 1.5-.9l.2-1.5h3l.2 1.5a7.8 7.8 0 0 1 1.5.9l1.4-.5 1.5 2.6-1.1.9a7 7 0 0 1 0 1.8Z"/></svg>
+          </button>
+        </div>
+      </aside>
+
+      <aside class="side-panel">
+        <button class="workspace-title" id="workspace-menu-button" type="button" aria-expanded="false">
+          <span>Orbit</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>
+        </button>
+        <div class="sidebar-scroll">
           <div class="nav-group">
-            <button class="nav-item selected" data-section="Home"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</button>
-            <button class="nav-item" data-section="Friends"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span>Friends</button>
-            <button class="nav-item" data-section="Messages"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span>Messages</button>
+            <button class="nav-item selected" data-section="Home"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</button>
+            <button class="nav-item" data-section="Friends"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span>Friends</button>
+            <button class="nav-item" data-section="Messages"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span>Messages</button>
           </div>
-          <div class="side-label">YOUR COMMUNITIES</div>
-          <div class="empty-communities">No communities yet</div>
-          <div class="side-bottom">
-            <div class="user-avatar" id="user-avatar">O</div>
-            <div class="user-meta"><strong id="user-name">Your account</strong><span id="user-status">Online</span></div>
-            <button id="logout" class="logout-button" aria-label="Sign out" title="Sign out">↪</button>
+          <div class="sidebar-section">
+            <div class="sidebar-section-heading"><span>COMMUNITIES</span><button id="create-community" class="icon-button small" type="button" aria-label="Create a community" title="Create a community">+</button></div>
+            <p class="sidebar-empty">Your joined communities will appear here.</p>
           </div>
-        </aside>
-        <section class="main-panel">
-          <header class="main-header"><div id="page-title">Home</div><div class="header-actions"><span class="online-dot"></span><span>Online</span></div></header>
-          <div class="home-content" id="home-content">
-            <div class="welcome-block"><p class="welcome-kicker">ORBIT</p><h1>Welcome in.</h1><p>Your space starts here.</p></div>
-            <div class="quick-grid">
-              <article class="quick-card"><span class="quick-symbol">♧</span><div><h2>Friends</h2><p>Your people will appear here.</p></div></article>
-              <article class="quick-card"><span class="quick-symbol">▤</span><div><h2>Messages</h2><p>Your conversations will appear here.</p></div></article>
-              <article class="quick-card"><span class="quick-symbol">◈</span><div><h2>Communities</h2><p>Your communities will appear here.</p></div></article>
-            </div>
+        </div>
+        <div class="account-bar">
+          <div class="user-avatar" id="user-avatar">O</div>
+          <div class="user-meta"><strong id="user-name">Your account</strong><span><i class="status-dot"></i>Online</span></div>
+          <button id="account-menu-button" class="account-menu-button" type="button" aria-label="User options" aria-expanded="false" title="User options">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg>
+          </button>
+          <div id="account-menu" class="account-menu" hidden>
+            <button type="button" data-account-action="profile">My Account</button>
+            <button type="button" data-account-action="settings">User Settings</button>
+            <div class="menu-divider"></div>
+            <button type="button" class="danger-menu-item" data-account-action="logout">Log Out</button>
           </div>
-          <nav class="mobile-nav" aria-label="Primary navigation">
-            <button class="mobile-nav-item selected" data-section="Home" aria-label="Home"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><span>Home</span></button>
-            <button class="mobile-nav-item" data-section="Friends" aria-label="Friends"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span><span>Friends</span></button>
-            <button class="mobile-nav-item" data-section="Messages" aria-label="Messages"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span><span>Messages</span></button>
-          </nav>
-        </section>
-      </main>
-    </div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+        </div>
+      </aside>
+
+      <section class="main-panel">
+        <header class="main-header">
+          <div class="header-title-wrap"><button id="mobile-sidebar-toggle" class="mobile-sidebar-toggle" type="button" aria-label="Open navigation"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button><span id="page-title">Home</span></div>
+          <div class="header-actions"><button id="inbox-button" class="header-icon-button" type="button" aria-label="Inbox" title="Inbox"><svg viewBox="0 0 24 24"><path d="M4 4h16v13H4z"/><path d="M4 13h4l2 3h4l2-3h4"/></svg></button><button id="help-button" class="header-icon-button" type="button" aria-label="Help" title="Help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.6 9a2.5 2.5 0 1 1 4.4 1.6c-1 1-2 1.2-2 2.9M12 17h.01"/></svg></button></div>
+        </header>
+        <div class="home-content" id="home-content" tabindex="-1">
+          <section class="welcome-block"><p class="welcome-kicker">YOUR SPACE</p><h1>Welcome to Orbit.</h1><p>Pick a place to start a conversation.</p></section>
+          <section class="home-grid" aria-label="Quick access">
+            <button class="home-tile" data-section="Friends"><span class="tile-icon friends-tile-icon"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span><span class="tile-copy"><strong>Friends</strong><small>Add people and keep in touch.</small></span><svg class="tile-arrow" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="home-tile" data-section="Messages"><span class="tile-icon messages-tile-icon"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span><span class="tile-copy"><strong>Messages</strong><small>Your private conversations live here.</small></span><svg class="tile-arrow" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+            <button class="home-tile" data-section="Communities"><span class="tile-icon communities-tile-icon"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-5 8 5v12z"/><path d="M9 20v-6h6v6M8 9h.01M16 9h.01"/></svg></span><span class="tile-copy"><strong>Communities</strong><small>Find a community or create your own.</small></span><svg class="tile-arrow" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+          </section>
+        </div>
+        <nav class="mobile-nav" aria-label="Primary navigation">
+          <button class="mobile-nav-item selected" data-section="Home"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><span>Home</span></button>
+          <button class="mobile-nav-item" data-section="Friends"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span><span>Friends</span></button>
+          <button class="mobile-nav-item" data-section="Messages"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span><span>Messages</span></button>
+          <button class="mobile-nav-item" data-section="Communities"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 20V8l8-5 8 5v12z"/><path d="M9 20v-6h6v6"/></svg></span><span>Communities</span></button>
+        </nav>
+      </section>
+      <div id="mobile-backdrop" class="mobile-backdrop" hidden></div>
+    </main>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
 </html>
