@@ -44,9 +44,9 @@
         <aside class="side-panel">
           <div class="workspace-title"><span>Orbit</span><span class="workspace-chevron">⌄</span></div>
           <div class="nav-group">
-            <button class="nav-item selected" data-section="Home"><span class="nav-icon">⌂</span>Home</button>
-            <button class="nav-item" data-section="Friends"><span class="nav-icon">♧</span>Friends</button>
-            <button class="nav-item" data-section="Messages"><span class="nav-icon">▤</span>Messages</button>
+            <button class="nav-item selected" data-section="Home"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span>Home</button>
+            <button class="nav-item" data-section="Friends"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span>Friends</button>
+            <button class="nav-item" data-section="Messages"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span>Messages</button>
           </div>
           <div class="side-label">YOUR COMMUNITIES</div>
           <div class="empty-communities">No communities yet</div>
@@ -66,6 +66,11 @@
               <article class="quick-card"><span class="quick-symbol">◈</span><div><h2>Communities</h2><p>Your communities will appear here.</p></div></article>
             </div>
           </div>
+          <nav class="mobile-nav" aria-label="Primary navigation">
+            <button class="mobile-nav-item selected" data-section="Home" aria-label="Home"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></span><span>Home</span></button>
+            <button class="mobile-nav-item" data-section="Friends" aria-label="Friends"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg></span><span>Friends</span></button>
+            <button class="mobile-nav-item" data-section="Messages" aria-label="Messages"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v9a2.5 2.5 0 0 1-2.5 2.5H9l-5 4z"/><path d="M8 8h8M8 12h5"/></svg></span><span>Messages</span></button>
+          </nav>
         </section>
       </main>
     </div>
