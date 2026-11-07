@@ -49,6 +49,7 @@ passwordToggle.addEventListener("click", () => {
   passwordInput.type = visible ? "text" : "password";
   passwordToggle.setAttribute("aria-label", visible ? "Hide password" : "Show password");
   passwordToggle.setAttribute("aria-pressed", String(visible));
+  passwordToggle.classList.toggle("is-visible", visible);
 });
 
 switchButton.addEventListener("click", () => setAuthMode(authMode === "signin" ? "signup" : "signin"));
