@@ -1,5 +1,6 @@
 import "./style.css";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
+import { renderMessagesView, initializeMessaging, activateMessagesView, setMessagingUser } from "./messaging.js";
 
 const $ = (selector) => document.querySelector(selector);
 const authScreen = $("#auth-screen");
@@ -62,6 +63,7 @@ function showAuth(text = "") {
 }
 
 function showWorkspace(user) {
+  setMessagingUser(user);
   authScreen.hidden = true;
   workspace.hidden = false;
   const email = user?.email || "Your account";
@@ -91,7 +93,7 @@ function renderSection(section, initialTab = null) {
   const views = {
     Home: `<section class="welcome-block"><p class="welcome-kicker">YOUR SPACE</p><h1>Welcome to Orbit.</h1><p>Pick a place to start a conversation.</p></section><section class="home-grid" aria-label="Quick access"><button class="home-tile" data-section="Friends"><span class="tile-icon friends-tile-icon">${icon.friends}</span><span class="tile-copy"><strong>Friends</strong><small>Add people and keep in touch.</small></span><span class="tile-arrow">›</span></button><button class="home-tile" data-section="Messages"><span class="tile-icon messages-tile-icon">${icon.messages}</span><span class="tile-copy"><strong>Messages</strong><small>Your private conversations live here.</small></span><span class="tile-arrow">›</span></button><button class="home-tile" data-section="Communities"><span class="tile-icon communities-tile-icon">${icon.communities}</span><span class="tile-copy"><strong>Communities</strong><small>Find a community or create your own.</small></span><span class="tile-arrow">›</span></button></section>`,
     Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div></section><section class="friends-shell"><div class="friends-tabs" role="tablist" aria-label="Friends"><button class="friends-tab active" data-friends-tab="all">All</button><button class="friends-tab" data-friends-tab="online">Online</button><button class="friends-tab" data-friends-tab="pending">Pending</button><button class="friends-tab" data-friends-tab="blocked">Blocked</button><button class="friends-tab add-friend-tab" data-friends-tab="add">Add Friend</button></div><div id="friends-panel" class="friends-panel"><div class="friends-loading">Loading friends…</div></div></section>`,
-    Messages: `<section class="section-heading"><div><p class="welcome-kicker">PRIVATE CONVERSATIONS</p><h1>Messages</h1><p>Your direct and group conversations.</p></div></section><section class="feature-empty"><span class="empty-illustration">${icon.messages}</span><h2>No conversations yet</h2><p>Your direct messages and group chats will appear here once messaging is implemented.</p></section>`,
+    Messages: renderMessagesView(),
     Inbox: `<section class="section-heading inbox-heading"><div><p class="welcome-kicker">YOUR ACTIVITY</p><h1>Inbox</h1><p>Friend requests and Orbit activity notifications.</p></div><button id="mark-all-notifications" class="section-action" type="button">Mark all as read</button></section><section class="inbox-shell"><div class="inbox-tabs" role="tablist" aria-label="Inbox filter"><button class="inbox-tab active" type="button" data-inbox-filter="all">All</button><button class="inbox-tab" type="button" data-inbox-filter="unread">Unread</button></div><p id="inbox-feedback" class="inbox-feedback" role="status" aria-live="polite"></p><div id="inbox-list" class="inbox-list" aria-live="polite"><div class="friends-loading">Loading notifications…</div></div></section>`,
     Communities: `<section class="section-heading"><div><p class="welcome-kicker">FIND YOUR PEOPLE</p><h1>Communities</h1><p>Places to talk about what you enjoy.</p></div><button class="section-action" type="button" disabled title="Community creation is part of the next feature build">Create Community</button></section><section class="feature-empty"><span class="empty-illustration">${icon.communities}</span><h2>Make a place of your own</h2><p>Community discovery, creation, invites, and channels will be connected in the Communities feature build.</p></section>`,
     Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and profile.</p></div></section><div class="settings-layout"><nav class="settings-nav" aria-label="Settings"><button class="settings-nav-item active" data-settings-tab="account">My Account</button><button class="settings-nav-item" data-settings-tab="profile">Profiles</button><button class="settings-nav-item" data-settings-tab="appearance">Appearance</button><button class="settings-nav-item" data-settings-tab="privacy">Privacy &amp; Safety</button><button class="settings-nav-item" data-settings-tab="notifications">Notifications</button></nav><section id="settings-panel" class="settings-panel"><p class="friends-loading">Loading account settings…</p></section></div>`,
@@ -99,6 +101,7 @@ function renderSection(section, initialTab = null) {
   };
   content.innerHTML = views[section] || views.Home;
   content.focus({ preventScroll: true });
+  if (section === "Messages") activateMessagesView(currentUser);
   const user = currentUser;
   if (section === "Settings") loadSettingsTab("account");
   if (section === "Friends") loadFriendsTab(initialTab || "all");
@@ -371,7 +374,7 @@ async function loadFriendsTab(tab = friendsTab) {
       const online=new Set((statuses||[]).filter(s=>s.presence==="online").map(s=>s.user_id));
       list=list.filter(p=>online.has(p.id));
     }
-    panel.innerHTML=list.map(p=>friendRow(p,`<button class="friend-action" data-friend-action="message" data-user-id="${p.id}" disabled title="Direct messages are next">Message</button><button class="friend-action danger" data-friend-action="remove" data-user-id="${p.id}">Remove</button><button class="friend-action" data-friend-action="block" data-user-id="${p.id}">Block</button>`)).join("")||`<div class="friend-empty-note centered">${tab==="online"?"No friends are currently online.":"No friends yet. Use Add Friend to find people."}</div>`;
+    panel.innerHTML=list.map(p=>friendRow(p,`<button class="friend-action" data-friend-action="message" data-user-id="${p.id}">Message</button><button class="friend-action danger" data-friend-action="remove" data-user-id="${p.id}">Remove</button><button class="friend-action" data-friend-action="block" data-user-id="${p.id}">Block</button>`)).join("")||`<div class="friend-empty-note centered">${tab==="online"?"No friends are currently online.":"No friends yet. Use Add Friend to find people."}</div>`;
   } catch(error) {
     panel.innerHTML=`<div class="friend-error">${escapeHtml(error.message||"Unable to load friends.")}</div>`;
   }
@@ -759,6 +762,7 @@ async function signOut() {
     notificationsRealtimeChannel = null;
   }
   currentUser = null;
+  setMessagingUser(null);
   unreadNotificationCount = 0;
   form.reset();
   setAuthMode("signin");
@@ -911,6 +915,7 @@ $("#mobile-backdrop").addEventListener("click", closeMobileSidebar);
 $("#inbox-button").addEventListener("click", () => renderSection("Inbox"));
 $("#help-button").addEventListener("click", () => renderSection("Help"));
 
+initializeMessaging({ navigateToMessages: () => renderSection("Messages") });
 setAuthMode("signin");
 if (!isSupabaseConfigured || !supabase) {
   showAuth("Account service is not configured.");
@@ -938,6 +943,7 @@ if (!isSupabaseConfigured || !supabase) {
         notificationsRealtimeChannel = null;
       }
       currentUser = null;
+      setMessagingUser(null);
       unreadNotificationCount = 0;
       const badge = $("#inbox-unread-badge");
       if (badge) badge.hidden = true;
