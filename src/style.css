@@ -377,6 +377,7 @@ svg{width:20px;height:20px;display:block;fill:none;stroke:currentColor;stroke-wi
 .message-meta{min-height:20px;display:flex;align-items:center;flex-wrap:wrap;gap:7px}
 .message-meta strong{color:#f2f3f5;font-size:12px;font-weight:700}
 .message-meta time,.message-edited{color:#858b94;font-size:9px}
+.message-read-receipt{margin-top:5px;color:#858b94;font-size:9px;font-weight:600;text-align:right;letter-spacing:.01em}
 .message-text{margin-top:4px;color:#dbdee1;font-size:12px;line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap}
 .deleted-message .message-text{color:#858b94;font-style:italic}
 .message-reply-preview{margin:5px 0 7px;padding:6px 9px;border-left:2px solid #8b91b7;border-radius:0 4px 4px 0;background:#2b2d31;display:grid;gap:3px}
