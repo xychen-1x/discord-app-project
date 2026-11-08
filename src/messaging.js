@@ -46,7 +46,7 @@ export function renderMessagesView() {
     '<p id="messaging-feedback" class="messaging-feedback" role="status" aria-live="polite"></p>' +
     '<section class="messaging-layout" aria-label="Messages">' +
       '<aside class="conversation-sidebar">' +
-        '<div class="conversation-sidebar-title"><strong>Direct messages</strong><button class="message-icon-button" type="button" data-open-new-message aria-label="Start a new message" title="New message">+</button></div>' +
+        '<div class="conversation-sidebar-title"><strong>Conversations</strong><button class="message-icon-button" type="button" data-open-new-message aria-label="Start a new message" title="New message">+</button></div>' +
         '<label class="conversation-search-wrap"><span aria-hidden="true">⌕</span><input id="conversation-search" type="search" placeholder="Find a conversation" autocomplete="off" aria-label="Find a conversation"></label>' +
         '<div id="conversation-list" class="conversation-list"><div class="friends-loading">Loading conversations…</div></div>' +
       '</aside>' +
@@ -229,15 +229,20 @@ async function loadConversationList() {
     });
   }
   const previewByConversation = new Map();
+  const unreadConversationIds = new Set();
   for (const message of previewsResult.data || []) {
     if (!previewByConversation.has(message.conversation_id)) previewByConversation.set(message.conversation_id, message);
+    const membership = membershipsById.get(message.conversation_id);
+    if (message.sender_id !== currentUser.id &&
+        (!membership?.last_read_at || new Date(message.created_at) > new Date(membership.last_read_at))) {
+      unreadConversationIds.add(message.conversation_id);
+    }
   }
   conversationCache = (conversationResult.data || []).map((conversation) => {
     const membership = membershipsById.get(conversation.id) || {};
     const members = membersByConversation.get(conversation.id) || [];
     const preview = previewByConversation.get(conversation.id);
-    const unread = Boolean(preview && preview.sender_id !== currentUser.id &&
-      (!membership.last_read_at || new Date(preview.created_at) > new Date(membership.last_read_at)));
+    const unread = unreadConversationIds.has(conversation.id);
     return {
       ...conversation,
       members,
@@ -331,7 +336,7 @@ async function loadMessageAssets(messageIds, conversationId = activeConversation
       .in('message_id', messageIds),
     supabase.from('conversation_pins')
       .select('message_id,pinned_by')
-      .eq('conversation_id', activeConversationId)
+      .eq('conversation_id', conversationId)
       .in('message_id', messageIds)
   ]);
   if (activeConversationId !== conversationId) return;
@@ -1106,7 +1111,7 @@ async function sendCurrentMessage(event) {
     } catch (uploadError) {
       console.error('Message attachment upload failed:', uploadError);
       const failedContent = content
-        ? content + '\\n[Attachment failed. Please resend the file.]'
+        ? content + '\n[Attachment failed. Please resend the file.]'
         : '[Attachment failed. Please resend the file.]';
       const { error: fallbackError } = await supabase.from('messages')
         .update({ message_type: 'text', content: failedContent })
