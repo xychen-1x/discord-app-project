@@ -198,3 +198,60 @@ const permissionDescriptions={
 function openPermissionsScreen(){ensurePermissionsScreen();renderPermissionsScreen();const layer=$("#permissions-layer");layer.hidden=false;layer.classList.add("is-open");document.body.classList.add("permissions-open");layer.querySelector(".permissions-close").focus();}
 function closePermissionsScreen(){const layer=$("#permissions-layer");if(!layer)return;layer.hidden=true;layer.classList.remove("is-open");document.body.classList.remove("permissions-open");}
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closePermissionsScreen();});
+
+
+// Orbit Screen 4: user profile modal (frontend mock only).
+const profileMock={
+  name:"Aevryn",username:"aevryn",pronouns:"",status:"Online",
+  bio:"Building ideas, exploring technology, and learning something new every day.",
+  joined:"November 2026",connections:[
+    {label:"GitHub",value:"Connected account",icon:"⌘"},
+    {label:"Orbit",value:"Community member",icon:"◈"}
+  ]
+};
+let activeProfileTab="about";
+function ensureProfileModal(){
+  if($("#profile-modal-layer"))return;
+  const layer=document.createElement("div");layer.id="profile-modal-layer";layer.className="profile-modal-layer";layer.hidden=true;
+  layer.innerHTML=`
+    <button class="profile-modal-backdrop" data-profile-close aria-label="Close profile"></button>
+    <section class="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-display-name">
+      <button class="profile-modal-x" data-profile-close aria-label="Close">×</button>
+      <div class="profile-banner"><div class="profile-banner-glow"></div><span class="profile-banner-label">ORBIT MEMBER</span></div>
+      <div class="profile-identity">
+        <div class="profile-avatar-wrap"><span class="profile-avatar">A</span><i class="profile-online-dot"></i></div>
+        <div class="profile-actions"><button type="button" class="profile-message" data-profile-action="message">Message</button><button type="button" class="profile-more" data-profile-action="more" aria-label="More profile actions">•••</button></div>
+      </div>
+      <div class="profile-body">
+        <div class="profile-name-block"><h2 id="profile-display-name">Aevryn</h2><p id="profile-username">@aevryn</p><span class="profile-status"><i></i> Online</span></div>
+        <div class="profile-tabs" role="tablist" aria-label="Profile sections">
+          <button type="button" role="tab" data-profile-tab="about" class="active" aria-selected="true">About me</button>
+          <button type="button" role="tab" data-profile-tab="connections" aria-selected="false">Connections</button>
+        </div>
+        <div id="profile-tab-content" class="profile-tab-content"></div>
+        <footer class="profile-modal-footer"><span>Member since November 2026</span><button type="button" data-profile-close>Close</button></footer>
+      </div>
+    </section>`;
+  document.body.appendChild(layer);
+  layer.addEventListener("click",e=>{
+    if(e.target.closest("[data-profile-close]"))closeProfileModal();
+    const tab=e.target.closest("[data-profile-tab]")?.dataset.profileTab;
+    if(tab){activeProfileTab=tab;renderProfileTab();}
+    const action=e.target.closest("[data-profile-action]")?.dataset.profileAction;
+    if(action==="message"){closeProfileModal();showOrbitToast("Messaging is a mock preview until backend integration.");}
+    if(action==="more")showOrbitToast("More profile actions will be added in a later UI pass.");
+  });
+}
+function renderProfileTab(){
+  const content=$("#profile-tab-content");if(!content)return;
+  document.querySelectorAll("[data-profile-tab]").forEach(b=>{const active=b.dataset.profileTab===activeProfileTab;b.classList.toggle("active",active);b.setAttribute("aria-selected",String(active));});
+  if(activeProfileTab==="about"){
+    content.innerHTML=`<section class="profile-info-card"><h3>ABOUT ME</h3><p>${esc(profileMock.bio)}</p></section><section class="profile-info-card profile-details"><h3>MEMBER DETAILS</h3><div><span>Username</span><b>@${esc(profileMock.username)}</b></div><div><span>Status</span><b>${esc(profileMock.status)}</b></div><div><span>Joined Orbit</span><b>${esc(profileMock.joined)}</b></div></section>`;
+  }else{
+    content.innerHTML=`<section class="profile-info-card"><h3>CONNECTED ACCOUNTS</h3><div class="profile-connections">${profileMock.connections.map(c=>`<div class="profile-connection"><span class="connection-icon">${esc(c.icon)}</span><span><b>${esc(c.label)}</b><small>${esc(c.value)}</small></span><span class="connection-check">✓</span></div>`).join("")}</div></section><p class="profile-connection-note">Connections shown here are sample profile data.</p>`;
+  }
+}
+function openProfileModal(){ensureProfileModal();activeProfileTab="about";renderProfileTab();const layer=$("#profile-modal-layer");layer.hidden=false;layer.classList.add("is-open");document.body.classList.add("profile-modal-open");layer.querySelector(".profile-modal-x").focus();}
+function closeProfileModal(){const layer=$("#profile-modal-layer");if(!layer)return;layer.hidden=true;layer.classList.remove("is-open");document.body.classList.remove("profile-modal-open");}
+$("#dock-profile")?.addEventListener("click",openProfileModal);
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeProfileModal();});
