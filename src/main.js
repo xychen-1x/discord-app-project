@@ -104,6 +104,37 @@ function renderSection(section) {
 
 let friendsTab = "all";
 let friendSearchTimer = null;
+let friendsRealtimeChannel = null;
+
+function setFriendsFeedback(message, state = "error") {
+  const panel = $("#friends-panel");
+  if (!panel) return;
+  let feedback = $("#friends-action-feedback");
+  if (!feedback) {
+    feedback = document.createElement("p");
+    feedback.id = "friends-action-feedback";
+    feedback.className = "friends-action-feedback";
+    feedback.setAttribute("role", "status");
+    panel.prepend(feedback);
+  }
+  feedback.textContent = message;
+  feedback.dataset.state = state;
+}
+
+function setupFriendsRealtime(userId) {
+  if (!supabase || !userId) return;
+  if (friendsRealtimeChannel) supabase.removeChannel(friendsRealtimeChannel);
+  const refreshCurrentFriendsView = () => {
+    if (activeSection === "Friends" && friendsTab !== "add") loadFriendsTab(friendsTab);
+  };
+  friendsRealtimeChannel = supabase.channel(`orbit-friends-${userId}`)
+    .on("postgres_changes", { event: "*", schema: "public", table: "friend_requests", filter: `sender_id=eq.${userId}` }, refreshCurrentFriendsView)
+    .on("postgres_changes", { event: "*", schema: "public", table: "friend_requests", filter: `receiver_id=eq.${userId}` }, refreshCurrentFriendsView)
+    .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `user_low_id=eq.${userId}` }, refreshCurrentFriendsView)
+    .on("postgres_changes", { event: "*", schema: "public", table: "friendships", filter: `user_high_id=eq.${userId}` }, refreshCurrentFriendsView)
+    .on("postgres_changes", { event: "*", schema: "public", table: "blocked_users", filter: `blocker_id=eq.${userId}` }, refreshCurrentFriendsView)
+    .subscribe();
+}
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 }
@@ -111,7 +142,10 @@ function friendRow(profile, actionMarkup = "") {
   const name = profile.display_name || profile.username || "Orbit user";
   const initial = name.slice(0,1).toUpperCase();
   const username = profile.username ? "@"+profile.username : "";
-  return `<article class="friend-row"><div class="friend-avatar">${escapeHtml(initial)}</div><div class="friend-identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(username)}</span></div><div class="friend-actions">${actionMarkup}</div></article>`;
+  const avatar = profile.avatar_url
+    ? `<img class="friend-avatar friend-avatar-image" src="${escapeHtml(profile.avatar_url)}" alt="" loading="lazy">`
+    : `<div class="friend-avatar" aria-hidden="true">${escapeHtml(initial)}</div>`;
+  return `<article class="friend-row">${avatar}<div class="friend-identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(username)}</span></div><div class="friend-actions">${actionMarkup}</div></article>`;
 }
 async function loadFriendsTab(tab = friendsTab) {
   friendsTab = tab;
@@ -193,7 +227,10 @@ async function handleFriendAction(button) {
   const action=button.dataset.friendAction;
   const userId=button.dataset.userId;
   const requestId=button.dataset.requestId;
+  if (action === "remove" && !window.confirm("Remove this person from your friends?")) return;
+  if (action === "block" && !window.confirm("Block this person? They will be removed from your friends if connected.")) return;
   button.disabled=true;
+  setFriendsFeedback("", "pending");
   try {
     let result;
     if(action==="send") result=await supabase.rpc("send_friend_request",{target_user:userId});
@@ -204,11 +241,18 @@ async function handleFriendAction(button) {
     if(action==="block") result=await supabase.rpc("block_user",{target_user:userId});
     if(action==="unblock") result=await supabase.rpc("unblock_user",{target_user:userId});
     if(result?.error) throw result.error;
-    if(action==="send") { button.textContent="Request Sent"; button.disabled=true; button.classList.add("completed"); return; }
+    if(action==="send") {
+      button.textContent="Request Sent";
+      button.disabled=true;
+      button.classList.add("completed");
+      setFriendsFeedback("Friend request sent.", "success");
+      return;
+    }
+    setFriendsFeedback("Friend action completed.", "success");
     await loadFriendsTab(friendsTab);
   } catch(error) {
     button.disabled=false;
-    window.alert(error.message||"That action could not be completed.");
+    setFriendsFeedback(error.message || "That action could not be completed.", "error");
   }
 }
 
@@ -555,13 +599,19 @@ if (!isSupabaseConfigured || !supabase) {
   const { data: { session } } = await supabase.auth.getSession();
   if (session?.user) {
     currentUser = session.user;
+    setupFriendsRealtime(session.user.id);
     showWorkspace(session.user);
   } else showAuth();
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       currentUser = session.user;
+      setupFriendsRealtime(session.user.id);
       showWorkspace(session.user);
     } else if (!session) {
+      if (friendsRealtimeChannel) {
+        supabase.removeChannel(friendsRealtimeChannel);
+        friendsRealtimeChannel = null;
+      }
       currentUser = null;
       showAuth();
     }
