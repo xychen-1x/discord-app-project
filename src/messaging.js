@@ -36,7 +36,7 @@ let listChannel = null;
 let typingTimer = null;
 let typingStopTimer = null;
 let messageSearchTimer = null;
-let loadingConversationId = null;
+const loadingConversationIds = new Set();
 
 export function renderMessagesView() {
   return '<section class="section-heading messaging-page-heading">' +
@@ -250,6 +250,10 @@ async function loadConversationList() {
     };
   });
   memberProfiles = profileMap;
+  if (activeConversationId) {
+    const refreshedActiveConversation = conversationCache.find((item) => item.id === activeConversationId);
+    if (refreshedActiveConversation) activeConversation = refreshedActiveConversation;
+  }
   renderConversationList();
 }
 
@@ -304,8 +308,9 @@ function renderPins() {
       '</button>').join('') + '</div></div>';
 }
 
-async function loadMessageAssets(messageIds) {
+async function loadMessageAssets(messageIds, conversationId = activeConversationId) {
   if (!messageIds.length) {
+    if (activeConversationId !== conversationId) return;
     activeAttachments = [];
     activeReactions = [];
     activeBookmarks = new Set();
@@ -329,6 +334,7 @@ async function loadMessageAssets(messageIds) {
       .eq('conversation_id', activeConversationId)
       .in('message_id', messageIds)
   ]);
+  if (activeConversationId !== conversationId) return;
   if (attachments.error || reactions.error || bookmarks.error || pins.error) {
     const error = attachments.error || reactions.error || bookmarks.error || pins.error;
     console.error('Message metadata load failed:', error);
@@ -372,9 +378,9 @@ function renderReactions(messageId) {
   }).join('') + '</div>';
 }
 
-async function signedAttachmentUrls() {
+async function signedAttachmentUrls(attachments = activeAttachments) {
   const result = new Map();
-  await Promise.all(activeAttachments.map(async (attachment) => {
+  await Promise.all(attachments.map(async (attachment) => {
     const { data, error } = await supabase.storage.from('message-attachments')
       .createSignedUrl(attachment.storage_path, 60 * 60);
     if (!error && data?.signedUrl) result.set(attachment.id, data.signedUrl);
@@ -385,13 +391,15 @@ async function signedAttachmentUrls() {
 function renderMessages() {
   const host = $('#chat-panel');
   if (!host || !activeConversation) return;
-  const urlMapPromise = signedAttachmentUrls();
+  const renderConversationId = activeConversationId;
+  const attachmentSnapshot = [...activeAttachments];
+  const urlMapPromise = signedAttachmentUrls(attachmentSnapshot);
   urlMapPromise.then((urlMap) => {
-    if (!$('#chat-message-list')) return;
+    if (activeConversationId !== renderConversationId || !$('#chat-message-list')) return;
     const list = $('#chat-message-list');
     const wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 140;
     list.querySelectorAll('[data-attachment-placeholder]').forEach((node) => node.remove());
-    for (const attachment of activeAttachments) {
+    for (const attachment of attachmentSnapshot) {
       const messageNode = list.querySelector('[data-message-id="' + CSS.escape(attachment.message_id) + '"] .message-attachments');
       if (messageNode) messageNode.innerHTML += renderAttachment(attachment, urlMap.get(attachment.id));
     }
@@ -554,38 +562,41 @@ async function setupLiveConversation(conversationId) {
 }
 
 async function loadMessages(conversationId, preserveScroll = false) {
-  if (!conversationId || !currentUser || !supabase) return;
-  if (loadingConversationId === conversationId) return;
-  loadingConversationId = conversationId;
+  if (!conversationId || !currentUser || !supabase || activeConversationId !== conversationId) return;
+  if (loadingConversationIds.has(conversationId)) return;
+  loadingConversationIds.add(conversationId);
   const list = $('#chat-message-list');
   const oldScrollHeight = list?.scrollHeight || 0;
   const oldScrollTop = list?.scrollTop || 0;
   if (list && !preserveScroll) list.innerHTML = '<div class="friends-loading">Loading messages…</div>';
-  const { data, error } = await supabase.from('messages')
-    .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(100);
-  if (error) {
-    if (list) list.innerHTML = '<div class="conversation-list-empty"><strong>Could not load messages</strong><p>Check your connection and try again.</p></div>';
-    setComposerFeedback('Messages could not be loaded.', 'error');
-    console.error('Message history load failed:', error);
-    loadingConversationId = null;
-    return;
-  }
-  hasMoreMessages = (data || []).length === 100;
-  loadedMessages = (data || []).reverse();
-  const senderIds = [...new Set(loadedMessages.map((message) => message.sender_id))];
-  const { data: senderProfiles, error: senderProfileError } = senderIds.length
-    ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', senderIds)
-    : { data: [], error: null };
-  if (!senderProfileError) {
-    for (const profile of senderProfiles || []) memberProfiles.set(profile.id, profile);
-  }
-  const messageIds = loadedMessages.map((message) => message.id);
-  await loadMessageAssets(messageIds);
-  if (activeConversationId === conversationId) {
+  try {
+    const { data, error } = await supabase.from('messages')
+      .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(100);
+    if (activeConversationId !== conversationId) return;
+    if (error) {
+      if (list) list.innerHTML = '<div class="conversation-list-empty"><strong>Could not load messages</strong><p>Check your connection and try again.</p></div>';
+      setComposerFeedback('Messages could not be loaded.', 'error');
+      console.error('Message history load failed:', error);
+      return;
+    }
+    const nextMessages = (data || []).reverse();
+    const senderIds = [...new Set(nextMessages.map((message) => message.sender_id))];
+    const { data: senderProfiles, error: senderProfileError } = senderIds.length
+      ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', senderIds)
+      : { data: [], error: null };
+    if (activeConversationId !== conversationId) return;
+    loadedMessages = nextMessages;
+    hasMoreMessages = (data || []).length === 100;
+    if (!senderProfileError) {
+      for (const profile of senderProfiles || []) memberProfiles.set(profile.id, profile);
+    }
+    const messageIds = loadedMessages.map((message) => message.id);
+    await loadMessageAssets(messageIds, conversationId);
+    if (activeConversationId !== conversationId) return;
     renderMessages();
     if (preserveScroll && $('#chat-message-list')) {
       const updated = $('#chat-message-list');
@@ -593,59 +604,74 @@ async function loadMessages(conversationId, preserveScroll = false) {
         updated.scrollTop = Math.max(0, oldScrollTop + updated.scrollHeight - oldScrollHeight);
       }
     }
+  } catch (loadError) {
+    if (activeConversationId === conversationId) {
+      setComposerFeedback('Messages could not be loaded. Try again.', 'error');
+    }
+    console.error('Message history load failed:', loadError);
+  } finally {
+    loadingConversationIds.delete(conversationId);
   }
-  loadingConversationId = null;
 }
 
 async function loadOlderMessages() {
   if (!hasMoreMessages || loadingOlderMessages || !activeConversationId || !loadedMessages.length) return;
+  const conversationId = activeConversationId;
   const list = $('#chat-message-list');
   if (!list) return;
   const oldest = loadedMessages[0];
   const oldHeight = list.scrollHeight;
   const oldTop = list.scrollTop;
   loadingOlderMessages = true;
-  const { data, error } = await supabase.from('messages')
-    .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
-    .eq('conversation_id', activeConversationId)
-    .lt('created_at', oldest.created_at)
-    .order('created_at', { ascending: false })
-    .order('id', { ascending: false })
-    .limit(100);
-  if (error) {
-    setComposerFeedback('Older messages could not be loaded.', 'error');
-    console.error('Older message history load failed:', error);
-    loadingOlderMessages = false;
-    return;
-  }
-  const older = (data || []).reverse();
-  hasMoreMessages = (data || []).length === 100;
-  if (older.length) {
-    loadedMessages = [...older, ...loadedMessages];
-    const ids = [...new Set(loadedMessages.map((message) => message.sender_id))];
+  try {
+    const { data, error } = await supabase.from('messages')
+      .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
+      .eq('conversation_id', conversationId)
+      .lt('created_at', oldest.created_at)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(100);
+    if (activeConversationId !== conversationId) return;
+    if (error) {
+      setComposerFeedback('Older messages could not be loaded.', 'error');
+      console.error('Older message history load failed:', error);
+      return;
+    }
+    const older = (data || []).reverse();
+    hasMoreMessages = (data || []).length === 100;
+    if (!older.length) return;
+    const mergedMessages = [...older, ...loadedMessages];
+    const ids = [...new Set(mergedMessages.map((message) => message.sender_id))];
     const { data: profiles, error: profileError } = ids.length
       ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', ids)
       : { data: [], error: null };
+    if (activeConversationId !== conversationId) return;
+    loadedMessages = mergedMessages;
     if (!profileError) {
       for (const profile of profiles || []) memberProfiles.set(profile.id, profile);
     }
-    await loadMessageAssets(loadedMessages.map((message) => message.id));
-    if (activeConversationId && $('#chat-panel')) {
-      renderMessages();
-      const updated = $('#chat-message-list');
-      if (updated) updated.scrollTop = oldTop + (updated.scrollHeight - oldHeight);
-    }
+    await loadMessageAssets(loadedMessages.map((message) => message.id), conversationId);
+    if (activeConversationId !== conversationId) return;
+    renderMessages();
+    const updated = $('#chat-message-list');
+    if (updated) updated.scrollTop = oldTop + (updated.scrollHeight - oldHeight);
+  } catch (loadError) {
+    if (activeConversationId === conversationId) setComposerFeedback('Older messages could not be loaded.', 'error');
+    console.error('Older message history load failed:', loadError);
+  } finally {
+    loadingOlderMessages = false;
   }
-  loadingOlderMessages = false;
 }
 
 async function jumpToMessage(messageId) {
   if (!messageId || !activeConversationId) return;
+  const conversationId = activeConversationId;
   let target = loadedMessages.find((message) => message.id === messageId);
   if (!target) {
     const { data: found, error: foundError } = await supabase.from('messages')
       .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
-      .eq('id', messageId).eq('conversation_id', activeConversationId).maybeSingle();
+      .eq('id', messageId).eq('conversation_id', conversationId).maybeSingle();
+    if (activeConversationId !== conversationId) return;
     if (foundError || !found) {
       setComposerFeedback('That message is no longer available.', 'error');
       return;
@@ -653,19 +679,20 @@ async function jumpToMessage(messageId) {
     const [beforeResult, afterResult] = await Promise.all([
       supabase.from('messages')
         .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
-        .eq('conversation_id', activeConversationId)
+        .eq('conversation_id', conversationId)
         .lt('created_at', found.created_at)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
         .limit(50),
       supabase.from('messages')
         .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
-        .eq('conversation_id', activeConversationId)
+        .eq('conversation_id', conversationId)
         .gte('created_at', found.created_at)
         .order('created_at', { ascending: true })
         .order('id', { ascending: true })
         .limit(50)
     ]);
+    if (activeConversationId !== conversationId) return;
     if (beforeResult.error || afterResult.error) {
       setComposerFeedback('Could not open that message.', 'error');
       return;
@@ -682,7 +709,8 @@ async function jumpToMessage(messageId) {
       ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', ids)
       : { data: [] };
     for (const profile of profiles || []) memberProfiles.set(profile.id, profile);
-    await loadMessageAssets(loadedMessages.map((message) => message.id));
+    await loadMessageAssets(loadedMessages.map((message) => message.id), conversationId);
+    if (activeConversationId !== conversationId) return;
     renderMessages();
   }
   requestAnimationFrame(() => {
@@ -1071,15 +1099,20 @@ async function sendCurrentMessage(event) {
     setComposerFeedback(error.message || 'Message could not be sent.', 'error');
     return;
   }
+  let sendFailureMessage = '';
   if (file) {
     try {
       await uploadMessageAttachment(file, data.id);
     } catch (uploadError) {
       console.error('Message attachment upload failed:', uploadError);
-      await supabase.from('messages')
-        .update({ content: 'Attachment upload failed. Please resend the file.' })
+      const failedContent = content
+        ? content + '\\n[Attachment failed. Please resend the file.]'
+        : '[Attachment failed. Please resend the file.]';
+      const { error: fallbackError } = await supabase.from('messages')
+        .update({ message_type: 'text', content: failedContent })
         .eq('id', data.id).eq('sender_id', currentUser.id);
-      setComposerFeedback(uploadError.message || 'Attachment upload failed. Please resend the file.', 'error');
+      if (fallbackError) console.error('Failed attachment fallback update failed:', fallbackError);
+      sendFailureMessage = 'Attachment upload failed. Your text message was kept; please resend the file.';
     }
   }
   if (input) input.value = '';
@@ -1088,9 +1121,13 @@ async function sendCurrentMessage(event) {
   replyTarget = null;
   sendButton.disabled = false;
   setComposerFeedback('', '');
-  await loadMessages(activeConversationId, true);
+  const sentConversationId = activeConversationId;
+  await loadMessages(sentConversationId, true);
   await loadConversationList();
-  await markConversationRead(activeConversationId);
+  await markConversationRead(sentConversationId);
+  if (activeConversationId === sentConversationId) {
+    setComposerFeedback(sendFailureMessage, sendFailureMessage ? 'error' : '');
+  }
 }
 
 function sendTyping() {
