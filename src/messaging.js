@@ -1060,19 +1060,19 @@ async function deleteMessage(messageId) {
   await loadMessages(activeConversationId, true);
 }
 
-async function uploadMessageAttachment(file, messageId) {
+async function uploadMessageAttachment(file, messageId, conversationId) {
   if (!allowedTypes.has(file.type) || file.size < 1 || file.size > 25 * 1024 * 1024) {
     throw new Error('Choose an allowed image or document up to 25 MB.');
   }
   const fileName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180) || 'attachment';
-  const path = activeConversationId + '/' + messageId + '/' + currentUser.id + '/' + crypto.randomUUID() + '_' + fileName;
+  const path = conversationId + '/' + messageId + '/' + currentUser.id + '/' + crypto.randomUUID() + '_' + fileName;
   const { error: uploadError } = await supabase.storage.from('message-attachments').upload(path, file, {
     cacheControl: '3600', contentType: file.type, upsert: false
   });
   if (uploadError) throw uploadError;
   const { error: metadataError } = await supabase.from('message_attachments').insert({
     message_id: messageId,
-    conversation_id: activeConversationId,
+    conversation_id: conversationId,
     uploaded_by: currentUser.id,
     storage_path: path,
     file_name: file.name.slice(0, 255),
@@ -1088,6 +1088,9 @@ async function uploadMessageAttachment(file, messageId) {
 async function sendCurrentMessage(event) {
   event.preventDefault();
   if (!currentUser || !activeConversationId) return;
+  const conversationId = activeConversationId;
+  const replyToId = replyTarget?.id || null;
+  const attachmentNameHost = $('#chat-attachment-name');
   const input = $('#chat-message-input');
   const fileInput = $('#chat-attachment');
   const file = fileInput?.files?.[0] || null;
@@ -1102,11 +1105,11 @@ async function sendCurrentMessage(event) {
   setComposerFeedback(file ? 'Uploading attachment…' : 'Sending…', 'pending');
   const messageType = file ? (file.type.startsWith('image/') ? 'image' : 'file') : 'text';
   const payload = {
-    conversation_id: activeConversationId,
+    conversation_id: conversationId,
     sender_id: currentUser.id,
     message_type: messageType,
     content: content || null,
-    reply_to_id: replyTarget?.id || null
+    reply_to_id: replyToId
   };
   const { data, error } = await supabase.from('messages').insert(payload).select('id').single();
   if (error) {
@@ -1117,7 +1120,7 @@ async function sendCurrentMessage(event) {
   let sendFailureMessage = '';
   if (file) {
     try {
-      await uploadMessageAttachment(file, data.id);
+      await uploadMessageAttachment(file, data.id, conversationId);
     } catch (uploadError) {
       console.error('Message attachment upload failed:', uploadError);
       const failedContent = content
@@ -1132,15 +1135,16 @@ async function sendCurrentMessage(event) {
   }
   if (input) input.value = '';
   if (fileInput) fileInput.value = '';
-  $('#chat-attachment-name').textContent = '';
-  replyTarget = null;
+  if (attachmentNameHost) attachmentNameHost.textContent = '';
+  if (activeConversationId === conversationId && replyTarget?.id === replyToId) {
+    replyTarget = null;
+  }
   sendButton.disabled = false;
   setComposerFeedback('', '');
-  const sentConversationId = activeConversationId;
-  await loadMessages(sentConversationId, true);
+  await loadMessages(conversationId, true);
   await loadConversationList();
-  await markConversationRead(sentConversationId);
-  if (activeConversationId === sentConversationId) {
+  if (activeConversationId === conversationId) {
+    await markConversationRead(conversationId);
     setComposerFeedback(sendFailureMessage, sendFailureMessage ? 'error' : '');
   }
 }
