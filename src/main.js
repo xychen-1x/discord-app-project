@@ -21,6 +21,9 @@ const confirmPasswordInput = $("#confirm-password");
 const forgotPasswordButton = $("#forgot-password");
 let authMode = "signin";
 let activeSection = "Home";
+let inboxFilter = "all";
+let unreadNotificationCount = 0;
+let notificationsRealtimeChannel = null;
 
 const icon = {
   friends: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 20v-1.5a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4V20"/><circle cx="9.5" cy="7" r="4"/><path d="M17 11a4 4 0 1 0-1-7.9M21 20v-1.5a4 4 0 0 0-3-3.87"/></svg>',
@@ -68,6 +71,7 @@ function showWorkspace(user) {
   $("#user-avatar").textContent = name.slice(0, 1).toUpperCase();
   renderSection(activeSection);
   loadAccountProfile();
+  refreshNotificationBadge();
 }
 
 function setPasswordVisibility(visible) {
@@ -77,7 +81,7 @@ function setPasswordVisibility(visible) {
   passwordToggle.classList.toggle("is-visible", visible);
 }
 
-function renderSection(section) {
+function renderSection(section, initialTab = null) {
   activeSection = section;
   $("#page-title").textContent = section;
   document.querySelectorAll("[data-section]").forEach((item) => {
@@ -88,6 +92,7 @@ function renderSection(section) {
     Home: `<section class="welcome-block"><p class="welcome-kicker">YOUR SPACE</p><h1>Welcome to Orbit.</h1><p>Pick a place to start a conversation.</p></section><section class="home-grid" aria-label="Quick access"><button class="home-tile" data-section="Friends"><span class="tile-icon friends-tile-icon">${icon.friends}</span><span class="tile-copy"><strong>Friends</strong><small>Add people and keep in touch.</small></span><span class="tile-arrow">›</span></button><button class="home-tile" data-section="Messages"><span class="tile-icon messages-tile-icon">${icon.messages}</span><span class="tile-copy"><strong>Messages</strong><small>Your private conversations live here.</small></span><span class="tile-arrow">›</span></button><button class="home-tile" data-section="Communities"><span class="tile-icon communities-tile-icon">${icon.communities}</span><span class="tile-copy"><strong>Communities</strong><small>Find a community or create your own.</small></span><span class="tile-arrow">›</span></button></section>`,
     Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div></section><section class="friends-shell"><div class="friends-tabs" role="tablist" aria-label="Friends"><button class="friends-tab active" data-friends-tab="all">All</button><button class="friends-tab" data-friends-tab="online">Online</button><button class="friends-tab" data-friends-tab="pending">Pending</button><button class="friends-tab" data-friends-tab="blocked">Blocked</button><button class="friends-tab add-friend-tab" data-friends-tab="add">Add Friend</button></div><div id="friends-panel" class="friends-panel"><div class="friends-loading">Loading friends…</div></div></section>`,
     Messages: `<section class="section-heading"><div><p class="welcome-kicker">PRIVATE CONVERSATIONS</p><h1>Messages</h1><p>Your direct and group conversations.</p></div></section><section class="feature-empty"><span class="empty-illustration">${icon.messages}</span><h2>No conversations yet</h2><p>Your direct messages and group chats will appear here once messaging is implemented.</p></section>`,
+    Inbox: `<section class="section-heading inbox-heading"><div><p class="welcome-kicker">YOUR ACTIVITY</p><h1>Inbox</h1><p>Friend requests and Orbit activity notifications.</p></div><button id="mark-all-notifications" class="section-action" type="button">Mark all as read</button></section><section class="inbox-shell"><div class="inbox-tabs" role="tablist" aria-label="Inbox filter"><button class="inbox-tab active" type="button" data-inbox-filter="all">All</button><button class="inbox-tab" type="button" data-inbox-filter="unread">Unread</button></div><p id="inbox-feedback" class="inbox-feedback" role="status" aria-live="polite"></p><div id="inbox-list" class="inbox-list" aria-live="polite"><div class="friends-loading">Loading notifications…</div></div></section>`,
     Communities: `<section class="section-heading"><div><p class="welcome-kicker">FIND YOUR PEOPLE</p><h1>Communities</h1><p>Places to talk about what you enjoy.</p></div><button class="section-action" type="button" disabled title="Community creation is part of the next feature build">Create Community</button></section><section class="feature-empty"><span class="empty-illustration">${icon.communities}</span><h2>Make a place of your own</h2><p>Community discovery, creation, invites, and channels will be connected in the Communities feature build.</p></section>`,
     Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and profile.</p></div></section><div class="settings-layout"><nav class="settings-nav" aria-label="Settings"><button class="settings-nav-item active" data-settings-tab="account">My Account</button><button class="settings-nav-item" data-settings-tab="profile">Profiles</button><button class="settings-nav-item" data-settings-tab="appearance">Appearance</button><button class="settings-nav-item" data-settings-tab="privacy">Privacy &amp; Safety</button><button class="settings-nav-item" data-settings-tab="notifications">Notifications</button></nav><section id="settings-panel" class="settings-panel"><p class="friends-loading">Loading account settings…</p></section></div>`,
     Help: `<section class="section-heading"><div><p class="welcome-kicker">ORBIT SUPPORT</p><h1>Help & Support</h1><p>Find guidance for using Orbit.</p></div></section><section class="feature-empty"><h2>Support resources are being prepared</h2><p>Help articles and support contact options will be available before public launch.</p></section>`
@@ -96,8 +101,8 @@ function renderSection(section) {
   content.focus({ preventScroll: true });
   const user = currentUser;
   if (section === "Settings") loadSettingsTab("account");
-  if (section === "Friends") loadFriendsTab("all");
-  
+  if (section === "Friends") loadFriendsTab(initialTab || "all");
+  if (section === "Inbox") loadNotifications(inboxFilter);
   closeMobileSidebar();
 }
 
@@ -135,6 +140,180 @@ function setupFriendsRealtime(userId) {
     .on("postgres_changes", { event: "*", schema: "public", table: "blocked_users", filter: `blocker_id=eq.${userId}` }, refreshCurrentFriendsView)
     .subscribe();
 }
+
+function setupNotificationsRealtime(userId) {
+  if (!supabase || !userId) return;
+  if (notificationsRealtimeChannel) supabase.removeChannel(notificationsRealtimeChannel);
+  notificationsRealtimeChannel = supabase.channel(\`orbit-notifications-\${userId}\`)
+    .on("postgres_changes", {
+      event: "*",
+      schema: "public",
+      table: "notifications",
+      filter: \`user_id=eq.\${userId}\`
+    }, () => {
+      refreshNotificationBadge();
+      if (activeSection === "Inbox") loadNotifications(inboxFilter);
+    })
+    .subscribe();
+}
+
+async function refreshNotificationBadge() {
+  const badge = $("#inbox-unread-badge");
+  if (!badge || !supabase || !currentUser) return;
+  const { count, error } = await supabase
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", currentUser.id)
+    .is("read_at", null)
+    .is("archived_at", null);
+  if (error) {
+    console.error("Unread notification count failed:", error);
+    return;
+  }
+  unreadNotificationCount = count || 0;
+  badge.textContent = unreadNotificationCount > 99 ? "99+" : String(unreadNotificationCount);
+  badge.hidden = unreadNotificationCount === 0;
+  $("#inbox-button")?.setAttribute(
+    "aria-label",
+    unreadNotificationCount
+      ? \`Inbox, \${unreadNotificationCount} unread notifications\`
+      : "Inbox"
+  );
+}
+
+function formatNotificationDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(date);
+}
+
+function notificationCategoryLabel(category) {
+  const labels = {
+    dm: "MESSAGE",
+    friend: "FRIEND",
+    mention: "MENTION",
+    reply: "REPLY",
+    invite: "INVITE",
+    call: "CALL",
+    event: "EVENT",
+    announcement: "ANNOUNCEMENT",
+    system: "SYSTEM"
+  };
+  return labels[category] || "ACTIVITY";
+}
+
+async function loadNotifications(filter = inboxFilter) {
+  inboxFilter = filter === "unread" ? "unread" : "all";
+  const list = $("#inbox-list");
+  if (!list || !supabase || !currentUser) return;
+  document.querySelectorAll("[data-inbox-filter]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.inboxFilter === inboxFilter);
+    button.setAttribute("aria-pressed", String(button.dataset.inboxFilter === inboxFilter));
+  });
+  list.innerHTML = '<div class="friends-loading">Loading notifications…</div>';
+  const now = new Date().toISOString();
+  let query = supabase
+    .from("notifications")
+    .select("id,category,title,body,data,created_at,read_at")
+    .eq("user_id", currentUser.id)
+    .is("archived_at", null)
+    .or(\`expires_at.is.null,expires_at.gt.\${now}\`)
+    .order("created_at", { ascending: false })
+    .limit(50);
+  if (inboxFilter === "unread") query = query.is("read_at", null);
+  const { data, error } = await query;
+  if (error) {
+    list.innerHTML = '<div class="inbox-empty"><strong>Could not load notifications</strong><p>Check your connection and try again.</p><button class="friend-action" type="button" data-notification-retry>Try again</button></div>';
+    console.error("Notifications load failed:", error);
+    return;
+  }
+  const notifications = data || [];
+  const unreadShown = notifications.some((item) => !item.read_at);
+  const markAllButton = $("#mark-all-notifications");
+  if (markAllButton) markAllButton.disabled = !unreadShown;
+  if (!notifications.length) {
+    list.innerHTML = inboxFilter === "unread"
+      ? '<div class="inbox-empty"><strong>You are all caught up</strong><p>There are no unread notifications.</p></div>'
+      : '<div class="inbox-empty"><strong>No notifications yet</strong><p>Friend requests and other Orbit activity will appear here.</p></div>';
+    refreshNotificationBadge();
+    return;
+  }
+  list.innerHTML = notifications.map((item) => {
+    const category = escapeHtml(item.category || "system");
+    const label = notificationCategoryLabel(item.category);
+    const type = escapeHtml(item.data?.type || "");
+    const unread = !item.read_at;
+    return \`<button class="notification-card\${unread ? " is-unread" : ""}" type="button"
+      data-notification-id="\${escapeHtml(item.id)}"
+      data-notification-category="\${category}"
+      data-notification-type="\${type}">
+      <span class="notification-category-mark" aria-hidden="true">\${escapeHtml(label.slice(0,2))}</span>
+      <span class="notification-copy">
+        <span class="notification-card-top"><strong>\${escapeHtml(item.title || "Orbit activity")}</strong><span class="notification-category">\${escapeHtml(label)}</span></span>
+        <span class="notification-body">\${escapeHtml(item.body || "")}</span>
+        <time datetime="\${escapeHtml(item.created_at)}">\${escapeHtml(formatNotificationDate(item.created_at))}</time>
+      </span>
+      \${unread ? '<span class="notification-unread-dot" aria-label="Unread"></span>' : ""}
+    </button>\`;
+  }).join("");
+  refreshNotificationBadge();
+}
+
+async function openNotification(card) {
+  if (!supabase || !currentUser || !card) return;
+  const id = card.dataset.notificationId;
+  const category = card.dataset.notificationCategory;
+  const type = card.dataset.notificationType;
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", currentUser.id)
+    .is("read_at", null);
+  if (error) {
+    const feedback = $("#inbox-feedback");
+    if (feedback) feedback.textContent = "Could not mark this notification as read.";
+    console.error("Notification read update failed:", error);
+    return;
+  }
+  refreshNotificationBadge();
+  if (category === "friend" && type === "friend_request") {
+    renderSection("Friends", "pending");
+  } else if (category === "friend") {
+    renderSection("Friends", "all");
+  } else if (category === "invite" || category === "event" || category === "announcement") {
+    renderSection("Communities");
+  } else if (["dm", "mention", "reply", "call"].includes(category)) {
+    renderSection("Messages");
+  } else {
+    loadNotifications(inboxFilter);
+  }
+}
+
+async function markAllNotificationsRead() {
+  if (!supabase || !currentUser) return;
+  const button = $("#mark-all-notifications");
+  const feedback = $("#inbox-feedback");
+  if (button) button.disabled = true;
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", currentUser.id)
+    .is("read_at", null)
+    .is("archived_at", null);
+  if (error) {
+    if (feedback) feedback.textContent = "Could not mark notifications as read.";
+    if (button) button.disabled = false;
+    console.error("Mark all notifications read failed:", error);
+    return;
+  }
+  if (feedback) feedback.textContent = "All notifications marked as read.";
+  await Promise.all([loadNotifications(inboxFilter), refreshNotificationBadge()]);
+}
+
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
 }
@@ -296,9 +475,134 @@ function loadSettingsTab(tab = settingsTab) {
       <form id="profile-edit-form" class="settings-form"><label for="profile-avatar-file">PROFILE AVATAR</label><input id="profile-avatar-file" type="file" accept="image/png,image/jpeg,image/webp,image/gif"><p class="settings-help">PNG, JPG, WebP, or GIF. Maximum 5 MB.</p><p id="avatar-form-message" class="settings-message" role="status"></p><label for="profile-display-name">DISPLAY NAME</label><input id="profile-display-name" type="text" maxlength="32" value="${escapeHtml(profile.display_name || "")}" required placeholder="Your display name"><label for="profile-username">USERNAME</label><div class="username-input-wrap"><span>@</span><input id="profile-username" type="text" minlength="3" maxlength="20" pattern="[a-z0-9_]{3,20}" autocapitalize="none" autocomplete="username" value="${escapeHtml(profile.username || "")}" required placeholder="username"></div><p id="username-availability" class="settings-help">3–20 characters: lowercase letters, numbers, underscores.</p><label for="profile-bio">ABOUT ME</label><textarea id="profile-bio" maxlength="190" rows="4" placeholder="Tell people a little about yourself…">${escapeHtml(profile.bio || "")}</textarea><div class="bio-counter"><span>Up to 190 characters</span><span id="bio-count">${(profile.bio || "").length}/190</span></div><button class="section-action" type="submit">Save Changes</button><p id="profile-form-message" class="settings-message" role="status"></p></form>`;
   } else if (tab === "appearance") {
     panel.innerHTML = `<div class="settings-panel-heading"><h2>Appearance</h2><p>Choose how Orbit looks on this device.</p></div><div class="settings-info-row"><div><strong>Dark theme</strong><p>Orbit's current interface theme.</p></div><span class="settings-tag">Active</span></div>`;
+  } else if (tab === "notifications") {
+    panel.innerHTML = `<div class="settings-panel-heading"><h2>Notifications</h2><p>Choose which in-app activity alerts Orbit should show.</p></div><div id="notification-settings-controls"><p class="friends-loading">Loading notification preferences…</p></div>`;
+    loadNotificationSettings();
   } else {
-    const label = tab === "privacy" ? "Privacy & Safety" : "Notifications";
-    panel.innerHTML = `<div class="settings-panel-heading"><h2>${label}</h2><p>These controls will be connected as their supporting systems are completed.</p></div><div class="settings-info-row"><span>${label} settings</span><span class="settings-tag">Not available yet</span></div>`;
+    panel.innerHTML = `<div class="settings-panel-heading"><h2>Privacy &amp; Safety</h2><p>Privacy controls will be connected as the related safety systems are completed.</p></div><div class="settings-info-row"><span>Privacy &amp; Safety settings</span><span class="settings-tag">Coming in a later milestone</span></div>`;
+  }
+}
+
+
+async function loadNotificationSettings() {
+  const host = $("#notification-settings-controls");
+  if (!host || !supabase || !currentUser) return;
+  host.innerHTML = '<p class="friends-loading">Loading notification preferences…</p>';
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const columns = "user_id,dm_enabled,friend_enabled,mention_enabled,reply_enabled,invite_enabled,call_enabled,event_enabled,announcement_enabled,quiet_hours_enabled,quiet_hours_start,quiet_hours_end,timezone";
+  let { data, error } = await supabase
+    .from("notification_settings")
+    .select(columns)
+    .eq("user_id", currentUser.id)
+    .maybeSingle();
+  if (error) {
+    host.innerHTML = '<p class="settings-message" data-state="error">Could not load notification preferences.</p>';
+    console.error("Notification preferences load failed:", error);
+    return;
+  }
+  if (!data) {
+    const created = await supabase
+      .from("notification_settings")
+      .upsert({
+        user_id: currentUser.id,
+        timezone,
+        quiet_hours_start: "22:00:00",
+        quiet_hours_end: "07:00:00"
+      }, { onConflict: "user_id" })
+      .select(columns)
+      .single();
+    data = created.data;
+    error = created.error;
+  }
+  if (error || !data) {
+    host.innerHTML = '<p class="settings-message" data-state="error">Could not initialize notification preferences.</p>';
+    console.error("Notification preferences initialization failed:", error);
+    return;
+  }
+  const rows = [
+    ["dm_enabled", "Direct messages", "Alerts for future direct and group messages."],
+    ["friend_enabled", "Friend activity", "Friend requests and accepted requests."],
+    ["mention_enabled", "Mentions", "When someone mentions you in a community."],
+    ["reply_enabled", "Replies", "When someone replies to your message."],
+    ["invite_enabled", "Community invites", "Invitations to join a community."],
+    ["call_enabled", "Calls", "Incoming voice and video call alerts."],
+    ["event_enabled", "Events", "Community event activity."],
+    ["announcement_enabled", "Announcements", "Community announcements."]
+  ];
+  const preferenceMarkup = rows.map(([key, title, description]) => \`
+    <div class="notification-preference-row">
+      <div><strong>\${title}</strong><p>\${description}</p></div>
+      <label class="notification-toggle" aria-label="\${title}">
+        <input type="checkbox" data-notification-setting="\${key}" \${data[key] ? "checked" : ""}>
+        <span aria-hidden="true"></span>
+      </label>
+    </div>\`).join("");
+  const start = String(data.quiet_hours_start || "22:00:00").slice(0,5);
+  const end = String(data.quiet_hours_end || "07:00:00").slice(0,5);
+  host.innerHTML = \`
+    <div class="notification-preferences">
+      \${preferenceMarkup}
+      <div class="notification-preference-row quiet-hours-row">
+        <div><strong>Quiet hours</strong><p>Save a preferred time window for future notification delivery controls.</p></div>
+        <label class="notification-toggle" aria-label="Quiet hours">
+          <input type="checkbox" data-notification-setting="quiet_hours_enabled" \${data.quiet_hours_enabled ? "checked" : ""}>
+          <span aria-hidden="true"></span>
+        </label>
+      </div>
+      <div class="quiet-hours-times">
+        <label>Start <input id="quiet-hours-start" type="time" data-notification-setting="quiet_hours_start" value="\${escapeHtml(start)}"></label>
+        <label>End <input id="quiet-hours-end" type="time" data-notification-setting="quiet_hours_end" value="\${escapeHtml(end)}"></label>
+      </div>
+      <p id="notification-settings-message" class="settings-message" role="status">Changes are saved automatically.</p>
+      <p class="settings-help">Browser push and email delivery are not active yet. These controls store in-app preferences for the current and upcoming notification systems.</p>
+    </div>\`;
+}
+
+async function saveNotificationSetting(input) {
+  if (!supabase || !currentUser || !input) return;
+  const key = input.dataset.notificationSetting;
+  const booleanKeys = new Set([
+    "dm_enabled", "friend_enabled", "mention_enabled", "reply_enabled",
+    "invite_enabled", "call_enabled", "event_enabled",
+    "announcement_enabled", "quiet_hours_enabled"
+  ]);
+  const timeKeys = new Set(["quiet_hours_start", "quiet_hours_end"]);
+  if (!booleanKeys.has(key) && !timeKeys.has(key)) return;
+  const status = $("#notification-settings-message");
+  const values = {};
+  if (timeKeys.has(key)) {
+    const start = $("#quiet-hours-start")?.value || "22:00";
+    const end = $("#quiet-hours-end")?.value || "07:00";
+    values.quiet_hours_start = start + ":00";
+    values.quiet_hours_end = end + ":00";
+  } else {
+    values[key] = input.checked;
+    if (key === "quiet_hours_enabled") {
+      values.quiet_hours_start = ($("#quiet-hours-start")?.value || "22:00") + ":00";
+      values.quiet_hours_end = ($("#quiet-hours-end")?.value || "07:00") + ":00";
+    }
+  }
+  input.disabled = true;
+  if (status) {
+    status.textContent = "Saving…";
+    status.dataset.state = "pending";
+  }
+  const { error } = await supabase
+    .from("notification_settings")
+    .update(values)
+    .eq("user_id", currentUser.id);
+  input.disabled = false;
+  if (error) {
+    if (status) {
+      status.textContent = error.message || "Could not save notification preferences.";
+      status.dataset.state = "error";
+    }
+    console.error("Notification preference update failed:", error);
+    return;
+  }
+  if (status) {
+    status.textContent = "Preferences saved.";
+    status.dataset.state = "success";
   }
 }
 
@@ -331,6 +635,10 @@ async function checkProfileUsername() {
 
 
 document.addEventListener("change", async (event) => {
+  if (event.target.matches("[data-notification-setting]")) {
+    saveNotificationSetting(event.target);
+    return;
+  }
   if (event.target.id !== "profile-avatar-file") return;
   const file = event.target.files?.[0];
   const status = $("#avatar-form-message");
@@ -446,7 +754,12 @@ async function signOut() {
     showAuth(error.message);
     return;
   }
+  if (notificationsRealtimeChannel) {
+    supabase.removeChannel(notificationsRealtimeChannel);
+    notificationsRealtimeChannel = null;
+  }
   currentUser = null;
+  unreadNotificationCount = 0;
   form.reset();
   setAuthMode("signin");
   showAuth();
@@ -551,6 +864,12 @@ forgotPasswordButton.addEventListener("click", async () => {
 });
 
 document.addEventListener("click", (event) => {
+  const inboxTabButton = event.target.closest("[data-inbox-filter]");
+  if (inboxTabButton) { loadNotifications(inboxTabButton.dataset.inboxFilter); return; }
+  if (event.target.closest("#mark-all-notifications")) { markAllNotificationsRead(); return; }
+  const notificationCard = event.target.closest("[data-notification-id]");
+  if (notificationCard) { openNotification(notificationCard); return; }
+  if (event.target.closest("[data-notification-retry]")) { loadNotifications(inboxFilter); return; }
   const friendTabButton=event.target.closest("[data-friends-tab]");
   if(friendTabButton){loadFriendsTab(friendTabButton.dataset.friendsTab);return;}
   const friendActionButton=event.target.closest("[data-friend-action]");
@@ -589,7 +908,7 @@ document.querySelectorAll("#create-community, #create-community-shortcut").forEa
 $("#workspace-menu-button").addEventListener("click", () => renderSection("Home"));
 $("#mobile-sidebar-toggle").addEventListener("click", openMobileSidebar);
 $("#mobile-backdrop").addEventListener("click", closeMobileSidebar);
-$("#inbox-button").addEventListener("click", () => renderSection("Messages"));
+$("#inbox-button").addEventListener("click", () => renderSection("Inbox"));
 $("#help-button").addEventListener("click", () => renderSection("Help"));
 
 setAuthMode("signin");
@@ -600,19 +919,28 @@ if (!isSupabaseConfigured || !supabase) {
   if (session?.user) {
     currentUser = session.user;
     setupFriendsRealtime(session.user.id);
+    setupNotificationsRealtime(session.user.id);
     showWorkspace(session.user);
   } else showAuth();
   supabase.auth.onAuthStateChange((_event, session) => {
     if (session?.user) {
       currentUser = session.user;
       setupFriendsRealtime(session.user.id);
+      setupNotificationsRealtime(session.user.id);
       showWorkspace(session.user);
     } else if (!session) {
       if (friendsRealtimeChannel) {
         supabase.removeChannel(friendsRealtimeChannel);
         friendsRealtimeChannel = null;
       }
+      if (notificationsRealtimeChannel) {
+        supabase.removeChannel(notificationsRealtimeChannel);
+        notificationsRealtimeChannel = null;
+      }
       currentUser = null;
+      unreadNotificationCount = 0;
+      const badge = $("#inbox-unread-badge");
+      if (badge) badge.hidden = true;
       showAuth();
     }
   });
