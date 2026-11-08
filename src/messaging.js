@@ -37,6 +37,7 @@ let typingTimer = null;
 let typingStopTimer = null;
 let messageSearchTimer = null;
 const loadingConversationIds = new Set();
+const pendingMessageRefreshIds = new Set();
 
 export function renderMessagesView() {
   return '<section class="section-heading messaging-page-heading">' +
@@ -568,7 +569,10 @@ async function setupLiveConversation(conversationId) {
 
 async function loadMessages(conversationId, preserveScroll = false) {
   if (!conversationId || !currentUser || !supabase || activeConversationId !== conversationId) return;
-  if (loadingConversationIds.has(conversationId)) return;
+  if (loadingConversationIds.has(conversationId)) {
+    pendingMessageRefreshIds.add(conversationId);
+    return;
+  }
   loadingConversationIds.add(conversationId);
   const list = $('#chat-message-list');
   const oldScrollHeight = list?.scrollHeight || 0;
@@ -616,6 +620,9 @@ async function loadMessages(conversationId, preserveScroll = false) {
     console.error('Message history load failed:', loadError);
   } finally {
     loadingConversationIds.delete(conversationId);
+    if (pendingMessageRefreshIds.delete(conversationId) && activeConversationId === conversationId) {
+      await loadMessages(conversationId, true);
+    }
   }
 }
 
@@ -775,6 +782,9 @@ export function setMessagingUser(user) {
   loadedMessages = [];
   memberProfiles = new Map();
   replyTarget = null;
+  loadingConversationIds.clear();
+  pendingMessageRefreshIds.clear();
+  loadingOlderMessages = false;
   if (liveChannel && supabase) supabase.removeChannel(liveChannel);
   if (listChannel && supabase) supabase.removeChannel(listChannel);
   liveChannel = null;
