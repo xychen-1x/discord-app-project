@@ -93,12 +93,14 @@ function closeServerMenu(){
   layer.hidden=true;layer.classList.remove("is-open");document.body.classList.remove("server-menu-open");
 }
 function applyChannelVisibility(){
-  const text=$("#channel-list")?.closest(".side-section");
-  const voice=document.querySelector(".voice-section");
-  if(text)text.hidden=!channelVisibility.text;
-  if(voice)voice.hidden=!channelVisibility.voice;
+  document.querySelectorAll(".side-section").forEach(section=>{
+    const label=section.querySelector(".section-label")?.textContent||"";
+    if(label.includes("TEXT CHANNELS"))section.hidden=!channelVisibility.text;
+    if(label.includes("VOICE CHANNELS"))section.hidden=!channelVisibility.voice;
+    const heading=section.querySelector(".section-label");
+    if(heading)heading.hidden=!channelVisibility.categories;
+  });
   document.querySelectorAll(".channel-static").forEach(el=>el.hidden=!channelVisibility.voice);
-  document.querySelectorAll(".section-label").forEach(el=>{if(el.textContent.includes("CHANNELS"))el.closest(".side-section").hidden=!channelVisibility.text;});
 }
 function showOrbitToast(message){
   let toast=$("#orbit-toast");
