@@ -62,3 +62,78 @@
   .server-menu-header h2{font-size:19px}
   .server-menu-action{min-height:64px}
 }
+
+/* Screen 3 — advanced permissions editor */
+.permissions-layer{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:22px}
+.permissions-layer[hidden]{display:none}
+.permissions-backdrop{position:absolute;inset:0;width:100%;height:100%;background:#090a0dcc;backdrop-filter:blur(5px)}
+.permissions-window{position:relative;z-index:1;width:min(1040px,100%);height:min(720px,calc(100dvh - 44px));display:grid;grid-template-columns:260px minmax(0,1fr);overflow:hidden;border:1px solid #454750;border-radius:16px;background:#292b30;box-shadow:0 25px 90px #0009;animation:permissions-in .18s ease-out}
+@keyframes permissions-in{from{opacity:0;transform:translateY(8px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+.permissions-sidebar{min-width:0;display:flex;flex-direction:column;padding:22px 14px 14px;background:#222429;border-right:1px solid #3a3c43}
+.permissions-side-top{padding:0 8px 22px}
+.permissions-eyebrow{color:#9298a5;font-size:9px;font-weight:800;letter-spacing:.14em}
+.permissions-side-top h2{margin:7px 0 6px;font-size:18px;letter-spacing:-.4px}
+.permissions-side-top p{margin:0;color:#a3a8b2;font-size:11px;line-height:1.5}
+.permissions-role-heading{display:flex;align-items:center;justify-content:space-between;padding:0 8px 8px;color:#9298a5;font-size:9px;font-weight:800;letter-spacing:.12em}
+.permissions-role-heading button{width:24px;height:24px;border-radius:6px;background:#383b44;color:#c8cbd3;font-size:17px}
+.permissions-role-list{display:grid;gap:3px}
+.permissions-role{height:40px;display:flex;align-items:center;gap:9px;padding:0 9px;border-radius:7px;background:transparent;color:#c6c9d0;text-align:left;font-size:12px}
+.permissions-role:hover{background:#30333a}
+.permissions-role.selected{background:#3a3d48;color:#fff}
+.role-color{width:9px;height:9px;border-radius:50%;background:var(--role-color)}
+.permissions-role small{margin-left:auto;color:#9298a5;font-size:10px}
+.permissions-side-footer{margin-top:auto;padding:12px 8px 2px;border-top:1px solid #383a41;color:#828894;font-size:9px}
+.permissions-main{min-width:0;min-height:0;display:flex;flex-direction:column}
+.permissions-main-header{display:flex;align-items:center;justify-content:space-between;padding:21px 24px 16px;border-bottom:1px solid #3b3d44}
+.permissions-main-header h3{margin:5px 0 0;font-size:20px;letter-spacing:-.4px}
+.permissions-close{width:32px;height:32px;border-radius:8px;background:#383b43;color:#bfc3cc;font-size:22px}
+.permissions-close:hover{background:#4a4d56;color:#fff}
+.permissions-toolbar{display:flex;align-items:center;gap:13px;padding:13px 24px;border-bottom:1px solid #3b3d44}
+.permissions-mode-switch{display:flex;gap:3px;padding:3px;border-radius:8px;background:#202227}
+.permissions-mode-switch button{padding:7px 12px;border-radius:6px;background:transparent;color:#a5aab4;font-size:10px;font-weight:700}
+.permissions-mode-switch button.active{background:#4b5061;color:#fff}
+.permissions-mode-note{color:#9298a5;font-size:10px}
+.permissions-content{min-height:0;flex:1;overflow:auto;padding:5px 24px 22px}
+.permission-group{padding:17px 0 6px;border-bottom:1px solid #3a3c43}
+.permission-group:last-child{border-bottom:0}
+.permission-group h4{margin:0 0 8px;color:#e1e3e8;font-size:12px}
+.permission-row{min-height:57px;display:flex;align-items:center;gap:18px;padding:8px 4px;border-radius:7px;cursor:pointer}
+.permission-row:hover{background:#303239}
+.permission-row>span{min-width:0;flex:1;display:grid;gap:4px}
+.permission-row b{font-size:11px;font-weight:650}
+.permission-row small{color:#9298a5;font-size:9px;line-height:1.4}
+.permission-row input{position:absolute;width:34px;height:19px;margin:0;opacity:0;cursor:pointer}
+.permission-row i{position:relative;width:34px;height:19px;flex-shrink:0;border-radius:20px;background:#555963;transition:background .15s}
+.permission-row i:after{content:"";position:absolute;top:3px;left:3px;width:13px;height:13px;border-radius:50%;background:#fff;transition:transform .15s}
+.permission-row input:checked+i{background:#5865f2}
+.permission-row input:checked+i:after{transform:translateX(15px)}
+.permission-row input:focus-visible+i{outline:2px solid #aab4ff;outline-offset:3px}
+.permissions-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 24px;border-top:1px solid #3b3d44;background:#25272c}
+.permissions-footer>span{display:flex;align-items:center;gap:7px;color:#9298a5;font-size:9px}
+.permissions-footer>span i{width:6px;height:6px;border-radius:50%;background:#e0ae57}
+.permissions-footer>div{display:flex;gap:8px}
+.permissions-footer button{min-height:32px;padding:0 13px;border-radius:7px;font-size:10px;font-weight:700}
+.permissions-cancel{background:#3b3e46;color:#d4d6dc}
+.permissions-save{background:#5865f2;color:#fff}
+.permissions-save:hover{background:#6875ff}
+@media(max-width:700px){
+ .permissions-layer{display:block;padding:0}
+ .permissions-backdrop{background:#090a0de8}
+ .permissions-window{width:100%;height:100dvh;max-height:100dvh;grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr);border:0;border-radius:0}
+ .permissions-sidebar{padding:15px 14px 10px;border-right:0;border-bottom:1px solid #3a3c43}
+ .permissions-side-top{padding:0 4px 10px}
+ .permissions-side-top h2{font-size:16px}
+ .permissions-side-top p,.permissions-side-footer{display:none}
+ .permissions-role-heading{padding:0 4px 5px}
+ .permissions-role-list{display:flex;gap:5px;overflow-x:auto;padding-bottom:2px}
+ .permissions-role{height:33px;flex:0 0 auto;padding:0 9px;font-size:10px}
+ .permissions-role small{display:none}
+ .permissions-main-header{padding:13px 16px 10px}
+ .permissions-main-header h3{font-size:17px}
+ .permissions-toolbar{padding:9px 16px}
+ .permissions-content{padding:2px 16px 15px}
+ .permission-group{padding-top:13px}
+ .permission-row{min-height:53px}
+ .permissions-footer{padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+}
+@media(prefers-reduced-motion:reduce){.permissions-window{animation:none}}
