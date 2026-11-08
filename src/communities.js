@@ -7,7 +7,7 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>"']/g, (char) => (
 const state = {
   user: null, communities: [], discovered: [], activeCommunity: null,
   channels: [], categories: [], activeChannel: null, messages: [],
-  members: [], roles: [], tab: "joined", realtime: null, messageRealtime: null,
+  members: [], roles: [], permissionCatalog: [], rolePermissionRows: [], selectedRoleId: null, tab: "joined", realtime: null, messageRealtime: null,
   loading: false
 };
 
@@ -189,6 +189,15 @@ async function loadCommunityRoles() {
     .eq("community_id", state.activeCommunity.id).order("position");
   if (error) throw error;
   state.roles = data || [];
+  if (!state.selectedRoleId || !state.roles.some((role) => role.id === state.selectedRoleId)) state.selectedRoleId = state.roles[0]?.id || null;
+  const [permissionsResult, rolePermissionsResult] = await Promise.all([
+    supabase.from("permissions").select("permission_key,scope,description").order("scope").order("permission_key"),
+    state.roles.length ? supabase.from("role_permissions").select("role_id,permission_key,is_allowed").in("role_id", state.roles.map((role) => role.id)) : Promise.resolve({ data: [], error: null })
+  ]);
+  if (permissionsResult.error) throw permissionsResult.error;
+  if (rolePermissionsResult.error) throw rolePermissionsResult.error;
+  state.permissionCatalog = permissionsResult.data || [];
+  state.rolePermissionRows = rolePermissionsResult.data || [];
 }
 
 async function renderCommunityDetail() {
@@ -225,7 +234,7 @@ async function renderCommunityDetail() {
         ${state.members.map((entry) => {
           const profile = entry.profiles || {};
           const label = profile.display_name || profile.username || "Orbit member";
-          return `<div class="community-member-row"><span class="community-member-avatar">${profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="">` : escapeHtml(label.slice(0,1).toUpperCase())}</span><span><strong>${escapeHtml(label)}</strong><small>${entry.user_id === community.owner_id ? "Owner" : "Member"}</small></span></div>`;
+          return `<div class="community-member-row"><span class="community-member-avatar">${profile.avatar_url ? `<img src="${escapeHtml(profile.avatar_url)}" alt="">` : escapeHtml(label.slice(0,1).toUpperCase())}</span><span><strong>${escapeHtml(label)}</strong><small>${entry.user_id === community.owner_id ? "Owner" : "Member"}</small></span>${owner && entry.user_id !== community.owner_id ? `<button type="button" class="community-member-role-button" data-community-action="member-roles" data-member-id="${entry.user_id}">Roles</button>` : ""}</div>`;
         }).join("")}
         ${owner ? '<button type="button" class="community-manage-roles" data-community-action="roles">Manage roles</button>' : ""}
       </aside>
@@ -332,7 +341,16 @@ function categoryModal(category = null) {
 }
 
 function rolesModal() {
-  showModal("Community roles", `<div class="community-role-list">${state.roles.map((role) => `<div class="community-role-row"><span style="--role-color:${escapeHtml(role.color || "#8b79e8")}"></span><strong>${escapeHtml(role.name)}</strong><small>${role.is_default ? "Default role" : "Custom role"}</small></div>`).join("")}</div><form id="community-role-form" class="community-form"><label>New role name<input name="name" maxlength="40" required placeholder="e.g. Moderator"></label><label>Role color<input name="color" type="color" value="#8b79e8"></label><p class="community-modal-feedback" role="status"></p><button class="primary-button" type="submit">Create role</button></form>`);
+  const selected = state.roles.find((role) => role.id === state.selectedRoleId);
+  const selectedPermissions = new Set(state.rolePermissionRows.filter((row) => row.role_id === state.selectedRoleId && row.is_allowed).map((row) => row.permission_key));
+  showModal("Community roles & permissions", `<div class="community-role-list">${state.roles.map((role) => `<button type="button" class="community-role-row ${role.id === state.selectedRoleId ? "active" : ""}" data-role-id="${role.id}"><span style="--role-color:${escapeHtml(role.color || "#8b79e8")}"></span><strong>${escapeHtml(role.name)}</strong><small>${role.is_default ? "Default role" : "Custom role"}</small></button>`).join("")}</div>${selected ? `<section class="community-permission-editor"><h3>${escapeHtml(selected.name)} permissions</h3>${state.permissionCatalog.map((permission) => `<label class="community-permission-row"><span><strong>${escapeHtml(permission.permission_key.replace(/_/g," "))}</strong><small>${escapeHtml(permission.description)}</small></span><input type="checkbox" data-role-permission="${escapeHtml(permission.permission_key)}" ${selectedPermissions.has(permission.permission_key) ? "checked" : ""}></label>`).join("")}</section>` : ""}<form id="community-role-form" class="community-form"><label>New role name<input name="name" maxlength="40" required placeholder="e.g. Moderator"></label><label>Role color<input name="color" type="color" value="#8b79e8"></label><p class="community-modal-feedback" role="status"></p><button class="primary-button" type="submit">Create role</button></form>`);
+}
+
+async function memberRolesModal(userId) {
+  const { data, error } = await supabase.from("member_roles").select("role_id").eq("community_id", state.activeCommunity.id).eq("user_id", userId);
+  if (error) return setFeedback(error.message, true);
+  const assigned = new Set((data || []).map((row) => row.role_id));
+  showModal("Member roles", `<form id="community-member-roles-form" class="community-form"><input type="hidden" name="user_id" value="${escapeHtml(userId)}">${state.roles.map((role) => `<label class="community-permission-row"><span><strong>${escapeHtml(role.name)}</strong><small>${role.is_default ? "Default role" : "Custom role"}</small></span><input type="checkbox" name="role_ids" value="${role.id}" ${assigned.has(role.id) ? "checked" : ""}></label>`).join("")}<p class="community-modal-feedback" role="status"></p><button class="primary-button" type="submit">Save member roles</button></form>`);
 }
 
 async function hashToken(token) {
@@ -370,6 +388,7 @@ async function handleCommunityAction(action, button) {
     return;
   }
   if (action === "roles" && owner) return rolesModal();
+  if (action === "member-roles" && owner) return memberRolesModal(button.dataset.memberId);
   if (action === "retry-channel") return loadChannelMessages();
   if (action === "channel-settings" && owner) {
     const channel = state.activeChannel;
@@ -419,6 +438,8 @@ function modalFeedback(message, isError = false) {
 
 document.addEventListener("click", async (event) => {
   if (!document.querySelector(".community-app")) return;
+  const roleButton = event.target.closest("[data-role-id]");
+  if (roleButton) { state.selectedRoleId = roleButton.dataset.roleId; rolesModal(); return; }
   const tab = event.target.closest("[data-community-tab]");
   if (tab) {
     state.tab = tab.dataset.communityTab;
@@ -445,6 +466,22 @@ document.addEventListener("click", async (event) => {
   }
   const channelButton = event.target.closest("[data-channel-id]");
   if (channelButton) { await openChannel(channelButton.dataset.channelId); return; }
+});
+
+document.addEventListener("change", async (event) => {
+  if (!document.querySelector(".community-app")) return;
+  if (event.target.matches("[data-role-permission]") && state.activeCommunity?.owner_id === state.user?.id && state.selectedRoleId) {
+    const permissionKey = event.target.dataset.rolePermission;
+    const result = event.target.checked
+      ? await supabase.from("role_permissions").upsert({ role_id: state.selectedRoleId, permission_key: permissionKey, is_allowed: true }, { onConflict: "role_id,permission_key" })
+      : await supabase.from("role_permissions").delete().eq("role_id", state.selectedRoleId).eq("permission_key", permissionKey);
+    if (result.error) { event.target.checked = !event.target.checked; modalFeedback(result.error.message, true); }
+    else {
+      state.rolePermissionRows = state.rolePermissionRows.filter((row) => !(row.role_id === state.selectedRoleId && row.permission_key === permissionKey));
+      if (event.target.checked) state.rolePermissionRows.push({ role_id: state.selectedRoleId, permission_key: permissionKey, is_allowed: true });
+      modalFeedback("Role permissions saved.");
+    }
+  }
 });
 
 document.addEventListener("input", (event) => {
@@ -551,6 +588,25 @@ document.addEventListener("submit", async (event) => {
     if (error) return modalFeedback(error.message, true);
     $("#community-modal-root").innerHTML = "";
     await loadCommunityStructure(); await renderCommunityDetail(); await loadChannelMessages();
+  }
+  if (form.id === "community-member-roles-form") {
+    event.preventDefault();
+    const values = new FormData(form);
+    const userId = values.get("user_id");
+    const selectedIds = values.getAll("role_ids");
+    const existing = await supabase.from("member_roles").select("role_id").eq("community_id", state.activeCommunity.id).eq("user_id", userId);
+    if (existing.error) return modalFeedback(existing.error.message, true);
+    const existingIds = new Set((existing.data || []).map((row) => row.role_id));
+    const selectedSet = new Set(selectedIds);
+    const toAdd = selectedIds.filter((id) => !existingIds.has(id)).map((roleId) => ({ community_id: state.activeCommunity.id, user_id: userId, role_id: roleId, assigned_by: state.user.id }));
+    const toRemove = [...existingIds].filter((id) => !selectedSet.has(id));
+    if (toAdd.length) { const added = await supabase.from("member_roles").insert(toAdd); if (added.error) return modalFeedback(added.error.message, true); }
+    for (const roleId of toRemove) {
+      const removed = await supabase.from("member_roles").delete().eq("community_id", state.activeCommunity.id).eq("user_id", userId).eq("role_id", roleId);
+      if (removed.error) return modalFeedback(removed.error.message, true);
+    }
+    $("#community-modal-root").innerHTML = "";
+    return;
   }
   if (form.id === "community-role-form") {
     event.preventDefault();
