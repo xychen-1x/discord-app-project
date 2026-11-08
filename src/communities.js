@@ -170,11 +170,17 @@ async function loadCommunityStructure() {
 
 async function loadCommunityMembers() {
   const { data, error } = await supabase.from("community_members")
-    .select("user_id,joined_at,profiles(id,username,display_name,avatar_url)")
+    .select("user_id,joined_at")
     .eq("community_id", state.activeCommunity.id).eq("member_state", "active")
     .order("joined_at").limit(200);
   if (error) throw error;
-  state.members = data || [];
+  const ids = (data || []).map((item) => item.user_id);
+  const { data: profiles, error: profileError } = ids.length
+    ? await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id", ids)
+    : { data: [], error: null };
+  if (profileError) throw profileError;
+  const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  state.members = (data || []).map((item) => ({ ...item, profiles: profileMap.get(item.user_id) || null }));
 }
 
 async function loadCommunityRoles() {
@@ -254,14 +260,23 @@ async function loadChannelMessages() {
   }
   root.innerHTML = '<p class="friends-loading">Loading channel…</p>';
   const { data, error } = await supabase.from("channel_messages")
-    .select("id,content,sender_id,created_at,edited_at,deleted_at,profiles(username,display_name,avatar_url)")
+    .select("id,content,sender_id,created_at,edited_at,deleted_at")
     .eq("channel_id", channel.id).order("created_at", { ascending: true }).limit(100);
   if (error) {
     root.innerHTML = '<div class="community-channel-placeholder"><h3>Could not load messages</h3><p>Check your connection and try again.</p><button type="button" class="community-secondary-button" data-community-action="retry-channel">Retry</button></div>';
     console.error("Channel messages failed:", error);
     return;
   }
-  state.messages = data || [];
+  const senderIds = [...new Set((data || []).map((item) => item.sender_id))];
+  const { data: profiles, error: profileError } = senderIds.length
+    ? await supabase.from("profiles").select("id,username,display_name,avatar_url").in("id", senderIds)
+    : { data: [], error: null };
+  if (profileError) {
+    root.innerHTML = '<div class="community-channel-placeholder"><h3>Could not load member profiles</h3><p>Try again in a moment.</p></div>';
+    return;
+  }
+  const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
+  state.messages = (data || []).map((item) => ({ ...item, profiles: profileMap.get(item.sender_id) || null }));
   renderChannelMessages();
 }
 
@@ -309,7 +324,7 @@ function settingsModal() {
 }
 
 function channelModal() {
-  showModal("Create a channel", `<form id="community-channel-create-form" class="community-form"><label>Channel name<input name="name" maxlength="80" required placeholder="new-channel"></label><label>Description<textarea name="description" maxlength="500" rows="2"></textarea></label><label>Category<select name="category_id"><option value="">No category</option>${state.categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}</select></label><label>Channel type<select name="channel_type"><option value="text">Text</option><option value="announcement">Announcement</option><option value="voice">Voice (setup only)</option><option value="forum">Forum (setup only)</option></select></label><label class="community-checkbox"><input type="checkbox" name="is_private"> Private channel</label><p class="community-modal-feedback" role="status"></p><button class="primary-button" type="submit">Create channel</button></form>`);
+  showModal("Create a channel", `<form id="community-channel-create-form" class="community-form"><label>Channel name<input name="name" maxlength="80" required placeholder="new-channel"></label><label>Description<textarea name="description" maxlength="500" rows="2"></textarea></label><label>Category<select name="category_id"><option value="">No category</option>${state.categories.map((c) => `<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("")}</select></label><label>Channel type<select name="channel_type"><option value="text">Text</option><option value="announcement">Announcement</option><option value="voice">Voice (setup only)</option><option value="forum">Forum (setup only)</option></select></label><p class="community-form-note">Private channel access controls will be available in the permissions stage.</p><p class="community-modal-feedback" role="status"></p><button class="primary-button" type="submit">Create channel</button></form>`);
 }
 
 function categoryModal(category = null) {
@@ -508,7 +523,7 @@ document.addEventListener("submit", async (event) => {
     const { error } = await supabase.from("channels").insert({
       community_id: state.activeCommunity.id, name: values.get("name").trim().toLowerCase().replace(/\s+/g, "-"),
       description: values.get("description").trim() || null, category_id: values.get("category_id") || null,
-      channel_type: values.get("channel_type"), is_private: values.get("is_private") === "on",
+      channel_type: values.get("channel_type"), is_private: false,
       position: state.channels.length
     });
     if (error) return modalFeedback(error.message, true);
