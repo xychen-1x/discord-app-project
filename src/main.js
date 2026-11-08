@@ -1,6 +1,7 @@
 import "./style.css";
 import { isSupabaseConfigured, supabase } from "./lib/supabase.js";
 import { renderMessagesView, initializeMessaging, activateMessagesView, setMessagingUser } from "./messaging.js";
+import { renderCommunitiesView, activateCommunitiesView, cleanupCommunities } from "./communities.js";
 
 const $ = (selector) => document.querySelector(selector);
 const authScreen = $("#auth-screen");
@@ -95,13 +96,14 @@ function renderSection(section, initialTab = null, targetConversationId = null) 
     Friends: `<section class="section-heading"><div><p class="welcome-kicker">YOUR PEOPLE</p><h1>Friends</h1><p>Connect with people on Orbit.</p></div></section><section class="friends-shell"><div class="friends-tabs" role="tablist" aria-label="Friends"><button class="friends-tab active" data-friends-tab="all">All</button><button class="friends-tab" data-friends-tab="online">Online</button><button class="friends-tab" data-friends-tab="pending">Pending</button><button class="friends-tab" data-friends-tab="blocked">Blocked</button><button class="friends-tab add-friend-tab" data-friends-tab="add">Add Friend</button></div><div id="friends-panel" class="friends-panel"><div class="friends-loading">Loading friends…</div></div></section>`,
     Messages: renderMessagesView(),
     Inbox: `<section class="section-heading inbox-heading"><div><p class="welcome-kicker">YOUR ACTIVITY</p><h1>Inbox</h1><p>Friend requests and Orbit activity notifications.</p></div><button id="mark-all-notifications" class="section-action" type="button">Mark all as read</button></section><section class="inbox-shell"><div class="inbox-tabs" role="tablist" aria-label="Inbox filter"><button class="inbox-tab active" type="button" data-inbox-filter="all">All</button><button class="inbox-tab" type="button" data-inbox-filter="unread">Unread</button></div><p id="inbox-feedback" class="inbox-feedback" role="status" aria-live="polite"></p><div id="inbox-list" class="inbox-list" aria-live="polite"><div class="friends-loading">Loading notifications…</div></div></section>`,
-    Communities: `<section class="section-heading"><div><p class="welcome-kicker">FIND YOUR PEOPLE</p><h1>Communities</h1><p>Places to talk about what you enjoy.</p></div><button class="section-action" type="button" disabled title="Community creation is part of the next feature build">Create Community</button></section><section class="feature-empty"><span class="empty-illustration">${icon.communities}</span><h2>Make a place of your own</h2><p>Community discovery, creation, invites, and channels will be connected in the Communities feature build.</p></section>`,
+    Communities: renderCommunitiesView(),
     Settings: `<section class="section-heading"><div><p class="welcome-kicker">PREFERENCES</p><h1>User Settings</h1><p>Manage your Orbit account and profile.</p></div></section><div class="settings-layout"><nav class="settings-nav" aria-label="Settings"><button class="settings-nav-item active" data-settings-tab="account">My Account</button><button class="settings-nav-item" data-settings-tab="profile">Profiles</button><button class="settings-nav-item" data-settings-tab="appearance">Appearance</button><button class="settings-nav-item" data-settings-tab="privacy">Privacy &amp; Safety</button><button class="settings-nav-item" data-settings-tab="notifications">Notifications</button></nav><section id="settings-panel" class="settings-panel"><p class="friends-loading">Loading account settings…</p></section></div>`,
     Help: `<section class="section-heading"><div><p class="welcome-kicker">ORBIT SUPPORT</p><h1>Help & Support</h1><p>Find guidance for using Orbit.</p></div></section><section class="feature-empty"><h2>Support resources are being prepared</h2><p>Help articles and support contact options will be available before public launch.</p></section>`
   };
   content.innerHTML = views[section] || views.Home;
   content.focus({ preventScroll: true });
   if (section === "Messages") activateMessagesView(currentUser, targetConversationId);
+  if (section === "Communities") activateCommunitiesView(currentUser);
   const user = currentUser;
   if (section === "Settings") loadSettingsTab("account");
   if (section === "Friends") loadFriendsTab(initialTab || "all");
@@ -762,6 +764,7 @@ async function signOut() {
     notificationsRealtimeChannel = null;
   }
   currentUser = null;
+  cleanupCommunities();
   setMessagingUser(null);
   unreadNotificationCount = 0;
   form.reset();
@@ -943,6 +946,7 @@ if (!isSupabaseConfigured || !supabase) {
         notificationsRealtimeChannel = null;
       }
       currentUser = null;
+      cleanupCommunities();
       setMessagingUser(null);
       unreadNotificationCount = 0;
       const badge = $("#inbox-unread-badge");
