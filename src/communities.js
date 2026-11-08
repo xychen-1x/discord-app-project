@@ -142,10 +142,16 @@ async function openCommunity(id, selectFirst = true) {
   if (!community) return;
   state.activeCommunity = community;
   if (selectFirst) state.activeChannel = null;
-  await Promise.all([loadCommunityStructure(), loadCommunityMembers(), loadCommunityRoles()]);
-  await renderCommunityDetail();
-  if (!state.activeChannel && state.channels.length) state.activeChannel = state.channels.find((channel) => channel.channel_type === "text") || state.channels[0];
-  if (state.activeChannel) await loadChannelMessages();
+  try {
+    await Promise.all([loadCommunityStructure(), loadCommunityMembers(), loadCommunityRoles()]);
+    if (!state.activeChannel && state.channels.length) state.activeChannel = state.channels.find((channel) => channel.channel_type === "text") || state.channels[0];
+    await renderCommunityDetail();
+    if (state.activeChannel) await loadChannelMessages();
+  } catch (error) {
+    const detail = $("#community-detail");
+    if (detail) detail.innerHTML = `<div class="community-channel-placeholder"><h3>Could not open community</h3><p>${escapeHtml(error.message || "Please try again.")}</p></div>`;
+    console.error("Community open failed:", error);
+  }
   else renderChannelEmpty();
   renderCommunityList();
 }
@@ -358,7 +364,7 @@ async function handleCommunityAction(action, button) {
   }
   if (action === "delete-message") {
     if (!confirm("Delete this message?")) return;
-    const { error } = await supabase.from("channel_messages").update({ deleted_at: new Date().toISOString(), content: " " })
+    const { error } = await supabase.from("channel_messages").update({ deleted_at: new Date().toISOString(), content: "Message deleted" })
       .eq("id", button.dataset.messageId).eq("sender_id", state.user.id);
     if (error) setFeedback(error.message, true);
     else await loadChannelMessages();
