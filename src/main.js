@@ -144,12 +144,12 @@ function setupFriendsRealtime(userId) {
 function setupNotificationsRealtime(userId) {
   if (!supabase || !userId) return;
   if (notificationsRealtimeChannel) supabase.removeChannel(notificationsRealtimeChannel);
-  notificationsRealtimeChannel = supabase.channel(\`orbit-notifications-\${userId}\`)
+  notificationsRealtimeChannel = supabase.channel(`orbit-notifications-${userId}`)
     .on("postgres_changes", {
       event: "*",
       schema: "public",
       table: "notifications",
-      filter: \`user_id=eq.\${userId}\`
+      filter: `user_id=eq.${userId}`
     }, () => {
       refreshNotificationBadge();
       if (activeSection === "Inbox") loadNotifications(inboxFilter);
@@ -176,7 +176,7 @@ async function refreshNotificationBadge() {
   $("#inbox-button")?.setAttribute(
     "aria-label",
     unreadNotificationCount
-      ? \`Inbox, \${unreadNotificationCount} unread notifications\`
+      ? `Inbox, ${unreadNotificationCount} unread notifications`
       : "Inbox"
   );
 }
@@ -220,7 +220,7 @@ async function loadNotifications(filter = inboxFilter) {
     .select("id,category,title,body,data,created_at,read_at")
     .eq("user_id", currentUser.id)
     .is("archived_at", null)
-    .or(\`expires_at.is.null,expires_at.gt.\${now}\`)
+    .or(`expires_at.is.null,expires_at.gt.${now}`)
     .order("created_at", { ascending: false })
     .limit(50);
   if (inboxFilter === "unread") query = query.is("read_at", null);
@@ -246,18 +246,18 @@ async function loadNotifications(filter = inboxFilter) {
     const label = notificationCategoryLabel(item.category);
     const type = escapeHtml(item.data?.type || "");
     const unread = !item.read_at;
-    return \`<button class="notification-card\${unread ? " is-unread" : ""}" type="button"
-      data-notification-id="\${escapeHtml(item.id)}"
-      data-notification-category="\${category}"
-      data-notification-type="\${type}">
-      <span class="notification-category-mark" aria-hidden="true">\${escapeHtml(label.slice(0,2))}</span>
+    return `<button class="notification-card${unread ? " is-unread" : ""}" type="button"
+      data-notification-id="${escapeHtml(item.id)}"
+      data-notification-category="${category}"
+      data-notification-type="${type}">
+      <span class="notification-category-mark" aria-hidden="true">${escapeHtml(label.slice(0,2))}</span>
       <span class="notification-copy">
-        <span class="notification-card-top"><strong>\${escapeHtml(item.title || "Orbit activity")}</strong><span class="notification-category">\${escapeHtml(label)}</span></span>
-        <span class="notification-body">\${escapeHtml(item.body || "")}</span>
-        <time datetime="\${escapeHtml(item.created_at)}">\${escapeHtml(formatNotificationDate(item.created_at))}</time>
+        <span class="notification-card-top"><strong>${escapeHtml(item.title || "Orbit activity")}</strong><span class="notification-category">${escapeHtml(label)}</span></span>
+        <span class="notification-body">${escapeHtml(item.body || "")}</span>
+        <time datetime="${escapeHtml(item.created_at)}">${escapeHtml(formatNotificationDate(item.created_at))}</time>
       </span>
-      \${unread ? '<span class="notification-unread-dot" aria-label="Unread"></span>' : ""}
-    </button>\`;
+      ${unread ? '<span class="notification-unread-dot" aria-label="Unread"></span>' : ""}
+    </button>`;
   }).join("");
   refreshNotificationBadge();
 }
@@ -529,33 +529,33 @@ async function loadNotificationSettings() {
     ["event_enabled", "Events", "Community event activity."],
     ["announcement_enabled", "Announcements", "Community announcements."]
   ];
-  const preferenceMarkup = rows.map(([key, title, description]) => \`
+  const preferenceMarkup = rows.map(([key, title, description]) => `
     <div class="notification-preference-row">
-      <div><strong>\${title}</strong><p>\${description}</p></div>
-      <label class="notification-toggle" aria-label="\${title}">
-        <input type="checkbox" data-notification-setting="\${key}" \${data[key] ? "checked" : ""}>
+      <div><strong>${title}</strong><p>${description}</p></div>
+      <label class="notification-toggle" aria-label="${title}">
+        <input type="checkbox" data-notification-setting="${key}" ${data[key] ? "checked" : ""}>
         <span aria-hidden="true"></span>
       </label>
-    </div>\`).join("");
+    </div>`).join("");
   const start = String(data.quiet_hours_start || "22:00:00").slice(0,5);
   const end = String(data.quiet_hours_end || "07:00:00").slice(0,5);
-  host.innerHTML = \`
+  host.innerHTML = `
     <div class="notification-preferences">
-      \${preferenceMarkup}
+      ${preferenceMarkup}
       <div class="notification-preference-row quiet-hours-row">
         <div><strong>Quiet hours</strong><p>Save a preferred time window for future notification delivery controls.</p></div>
         <label class="notification-toggle" aria-label="Quiet hours">
-          <input type="checkbox" data-notification-setting="quiet_hours_enabled" \${data.quiet_hours_enabled ? "checked" : ""}>
+          <input type="checkbox" data-notification-setting="quiet_hours_enabled" ${data.quiet_hours_enabled ? "checked" : ""}>
           <span aria-hidden="true"></span>
         </label>
       </div>
       <div class="quiet-hours-times">
-        <label>Start <input id="quiet-hours-start" type="time" data-notification-setting="quiet_hours_start" value="\${escapeHtml(start)}"></label>
-        <label>End <input id="quiet-hours-end" type="time" data-notification-setting="quiet_hours_end" value="\${escapeHtml(end)}"></label>
+        <label>Start <input id="quiet-hours-start" type="time" data-notification-setting="quiet_hours_start" value="${escapeHtml(start)}"></label>
+        <label>End <input id="quiet-hours-end" type="time" data-notification-setting="quiet_hours_end" value="${escapeHtml(end)}"></label>
       </div>
       <p id="notification-settings-message" class="settings-message" role="status">Changes are saved automatically.</p>
       <p class="settings-help">Browser push and email delivery are not active yet. These controls store in-app preferences for the current and upcoming notification systems.</p>
-    </div>\`;
+    </div>`;
 }
 
 async function saveNotificationSetting(input) {
