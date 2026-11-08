@@ -83,7 +83,7 @@ function setPasswordVisibility(visible) {
   passwordToggle.classList.toggle("is-visible", visible);
 }
 
-function renderSection(section, initialTab = null) {
+function renderSection(section, initialTab = null, targetConversationId = null) {
   activeSection = section;
   $("#page-title").textContent = section;
   document.querySelectorAll("[data-section]").forEach((item) => {
@@ -101,7 +101,7 @@ function renderSection(section, initialTab = null) {
   };
   content.innerHTML = views[section] || views.Home;
   content.focus({ preventScroll: true });
-  if (section === "Messages") activateMessagesView(currentUser);
+  if (section === "Messages") activateMessagesView(currentUser, targetConversationId);
   const user = currentUser;
   if (section === "Settings") loadSettingsTab("account");
   if (section === "Friends") loadFriendsTab(initialTab || "all");
@@ -252,7 +252,7 @@ async function loadNotifications(filter = inboxFilter) {
     return `<button class="notification-card${unread ? " is-unread" : ""}" type="button"
       data-notification-id="${escapeHtml(item.id)}"
       data-notification-category="${category}"
-      data-notification-type="${type}">
+      data-notification-type="${type}" data-conversation-id="${escapeHtml(item.data?.conversation_id || "")}">
       <span class="notification-category-mark" aria-hidden="true">${escapeHtml(label.slice(0,2))}</span>
       <span class="notification-copy">
         <span class="notification-card-top"><strong>${escapeHtml(item.title || "Orbit activity")}</strong><span class="notification-category">${escapeHtml(label)}</span></span>
@@ -290,7 +290,7 @@ async function openNotification(card) {
   } else if (category === "invite" || category === "event" || category === "announcement") {
     renderSection("Communities");
   } else if (["dm", "mention", "reply", "call"].includes(category)) {
-    renderSection("Messages");
+    renderSection("Messages", null, card.dataset.conversationId || null);
   } else {
     loadNotifications(inboxFilter);
   }
