@@ -242,3 +242,14 @@ svg{width:20px;height:20px;display:block;fill:none;stroke:currentColor;stroke-wi
 
 .profile-preview-image{object-fit:cover;border:1px solid #42444b}
 .settings-form input[type="file"]{height:auto;min-height:42px;padding:8px}
+
+/* Friends milestone improvements */
+
+.friend-avatar-image{object-fit:cover;border:1px solid #454751}
+.friend-identity{min-width:0;flex:1;display:flex;flex-direction:column;gap:3px}
+.friend-identity strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#f2f3f5;font-size:13px}
+.friend-identity span{color:#b5bac1;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.friends-action-feedback{margin:0 0 12px;padding:9px 12px;border-radius:5px;background:#2b2d31;color:#dbdee1;font-size:12px}
+.friends-action-feedback[data-state="success"]{color:#a8e6b5;border:1px solid #285d3b}
+.friends-action-feedback[data-state="error"]{color:#f0a3a5;border:1px solid #65383b}
+.friends-action-feedback[data-state="pending"]{color:#b5bac1}
