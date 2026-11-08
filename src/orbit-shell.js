@@ -58,7 +58,7 @@ function ensureServerMenu(){
   layer.addEventListener("click",e=>{
     if(e.target.closest("[data-server-menu-close]"))closeServerMenu();
     const action=e.target.closest("[data-server-action]")?.dataset.serverAction;
-    if(action){const labels={boost:"Server Boost screen is planned for a later UI pass.",invite:"Invite flow will be connected after the UI phase.",settings:"Server Settings screen is planned for a later UI pass."};showOrbitToast(labels[action]);}
+    if(action){const labels={boost:"Server Boost screen is planned for a later UI pass.",invite:"Invite flow will be connected after the UI phase.",settings:""};if(action==="settings"){closeServerMenu();openPermissionsScreen();}else showOrbitToast(labels[action]);}
   });
   layer.addEventListener("change",e=>{
     const key=e.target.dataset.channelVisibility;
@@ -110,3 +110,91 @@ function showOrbitToast(message){
 }
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeServerMenu();});
 document.querySelectorAll(".server-icon").forEach(button=>button.addEventListener("contextmenu",e=>{e.preventDefault();openServerMenu(button.dataset.server,button);}));
+
+
+// Orbit Screen 3: advanced server permissions (frontend mock only).
+const permissionState = {
+  selectedRole:"moderator",
+  mode:"basic",
+  roles:[
+    {id:"admin",name:"Admin",color:"#e5a84b",members:2},
+    {id:"moderator",name:"Moderator",color:"#58a6d8",members:4},
+    {id:"member",name:"Member",color:"#8b91a1",members:18},
+    {id:"guest",name:"Guest",color:"#8d75c7",members:3}
+  ],
+  values:{
+    admin:{manageServer:true,manageRoles:true,manageChannels:true,kickMembers:true,banMembers:true,manageMessages:true,mentionEveryone:true,viewChannels:true,sendMessages:true,attachFiles:true,connectVoice:true,speak:true},
+    moderator:{manageServer:false,manageRoles:false,manageChannels:true,kickMembers:true,banMembers:false,manageMessages:true,mentionEveryone:false,viewChannels:true,sendMessages:true,attachFiles:true,connectVoice:true,speak:true},
+    member:{manageServer:false,manageRoles:false,manageChannels:false,kickMembers:false,banMembers:false,manageMessages:false,mentionEveryone:false,viewChannels:true,sendMessages:true,attachFiles:true,connectVoice:true,speak:true},
+    guest:{manageServer:false,manageRoles:false,manageChannels:false,kickMembers:false,banMembers:false,manageMessages:false,mentionEveryone:false,viewChannels:true,sendMessages:false,attachFiles:false,connectVoice:true,speak:false}
+  }
+};
+const permissionGroups=[
+  {title:"General permissions",items:[["viewChannels","View channels"],["manageChannels","Manage channels"],["manageServer","Manage server"],["manageRoles","Manage roles"]]},
+  {title:"Membership",items:[["kickMembers","Kick members"],["banMembers","Ban members"]]},
+  {title:"Text channel permissions",items:[["sendMessages","Send messages"],["manageMessages","Manage messages"],["attachFiles","Attach files"],["mentionEveryone","Mention @everyone, @here and all roles"]]},
+  {title:"Voice channel permissions",items:[["connectVoice","Connect"],["speak","Speak"]]}
+];
+function ensurePermissionsScreen(){
+  if($("#permissions-layer"))return;
+  const layer=document.createElement("div");
+  layer.id="permissions-layer";layer.className="permissions-layer";layer.hidden=true;
+  layer.innerHTML=`
+    <button class="permissions-backdrop" data-permissions-close aria-label="Close permissions"></button>
+    <section class="permissions-window" role="dialog" aria-modal="true" aria-labelledby="permissions-title">
+      <aside class="permissions-sidebar">
+        <div class="permissions-side-top"><span class="permissions-eyebrow">SERVER SETTINGS</span><h2 id="permissions-title">Roles &amp; permissions</h2><p>Control what each role can do in this server.</p></div>
+        <div class="permissions-role-heading">ROLES <button type="button" data-add-role>＋</button></div>
+        <div class="permissions-role-list" id="permissions-role-list"></div>
+        <div class="permissions-side-footer">Preview mode · Changes are not saved</div>
+      </aside>
+      <div class="permissions-main">
+        <header class="permissions-main-header"><div><span class="permissions-eyebrow">ROLE CONFIGURATION</span><h3 id="permissions-role-title">Moderator</h3></div><button class="permissions-close" data-permissions-close aria-label="Close">×</button></header>
+        <div class="permissions-toolbar"><div class="permissions-mode-switch" role="group" aria-label="Permission detail"><button type="button" data-permission-mode="basic" class="active">Basic</button><button type="button" data-permission-mode="advanced">Advanced</button></div><span class="permissions-mode-note" id="permissions-mode-note">Essential role permissions</span></div>
+        <div class="permissions-content" id="permissions-content"></div>
+        <footer class="permissions-footer"><span><i></i> Local preview only</span><div><button type="button" class="permissions-cancel" data-permissions-close>Close</button><button type="button" class="permissions-save" data-permissions-save>Save preview</button></div></footer>
+      </div>
+    </section>`;
+  document.body.appendChild(layer);
+  layer.addEventListener("click",e=>{
+    if(e.target.closest("[data-permissions-close]"))closePermissionsScreen();
+    if(e.target.closest("[data-add-role]"))showOrbitToast("Role creation will be added in a later UI pass.");
+    const role=e.target.closest("[data-role-id]")?.dataset.roleId;
+    if(role){permissionState.selectedRole=role;renderPermissionsScreen();}
+    const mode=e.target.closest("[data-permission-mode]")?.dataset.permissionMode;
+    if(mode){permissionState.mode=mode;renderPermissionsScreen();}
+    if(e.target.closest("[data-permissions-save]"))showOrbitToast("Preview updated locally. Nothing has been saved to the server.");
+  });
+  layer.addEventListener("change",e=>{
+    const key=e.target.dataset.permissionKey;
+    if(!key)return;
+    permissionState.values[permissionState.selectedRole][key]=e.target.checked;
+  });
+}
+function renderPermissionsScreen(){
+  const layer=$("#permissions-layer");if(!layer)return;
+  const role=permissionState.roles.find(r=>r.id===permissionState.selectedRole)||permissionState.roles[0];
+  $("#permissions-role-title").textContent=role.name;
+  $("#permissions-role-list").innerHTML=permissionState.roles.map(r=>`<button type="button" class="permissions-role ${r.id===role.id?"selected":""}" data-role-id="${r.id}"><span class="role-color" style="--role-color:${r.color}"></span><span>${esc(r.name)}</span><small>${r.members}</small></button>`).join("");
+  document.querySelectorAll("[data-permission-mode]").forEach(b=>b.classList.toggle("active",b.dataset.permissionMode===permissionState.mode));
+  $("#permissions-mode-note").textContent=permissionState.mode==="basic"?"Essential role permissions":"Full permission controls";
+  const visibleGroups=permissionState.mode==="basic"?permissionGroups.filter(g=>["General permissions","Membership","Text channel permissions"].includes(g.title)):permissionGroups;
+  $("#permissions-content").innerHTML=visibleGroups.map(group=>`<section class="permission-group"><h4>${group.title}</h4>${group.items.map(([key,label])=>`<label class="permission-row"><span><b>${label}</b><small>${permissionDescriptions[key]||"Allow this role to use this permission."}</small></span><input type="checkbox" data-permission-key="${key}" ${permissionState.values[role.id][key]?"checked":""}><i></i></label>`).join("")}</section>`).join("");
+}
+const permissionDescriptions={
+  viewChannels:"Lets members view channels they have access to.",
+  manageChannels:"Lets members create, edit and delete channels.",
+  manageServer:"Lets members change server settings and configuration.",
+  manageRoles:"Lets members create and edit roles below their own role.",
+  kickMembers:"Lets members remove people from this server.",
+  banMembers:"Lets members ban people from this server.",
+  sendMessages:"Lets members send messages in text channels.",
+  manageMessages:"Lets members delete or pin other members' messages.",
+  attachFiles:"Lets members upload files and images.",
+  mentionEveryone:"Lets members use @everyone, @here and role mentions.",
+  connectVoice:"Lets members join voice channels.",
+  speak:"Lets members speak in voice channels."
+};
+function openPermissionsScreen(){ensurePermissionsScreen();renderPermissionsScreen();const layer=$("#permissions-layer");layer.hidden=false;layer.classList.add("is-open");document.body.classList.add("permissions-open");layer.querySelector(".permissions-close").focus();}
+function closePermissionsScreen(){const layer=$("#permissions-layer");if(!layer)return;layer.hidden=true;layer.classList.remove("is-open");document.body.classList.remove("permissions-open");}
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closePermissionsScreen();});
