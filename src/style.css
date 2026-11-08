@@ -465,3 +465,5 @@ svg{width:20px;height:20px;display:block;fill:none;stroke:currentColor;stroke-wi
  .message-modal-backdrop{padding:10px}
  .message-modal-body{padding:13px}
 }
+
+.message-pin-status{padding:3px 6px;color:#aab4ff;font-size:9px}
