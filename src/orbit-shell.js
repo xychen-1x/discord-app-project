@@ -255,3 +255,53 @@ function openProfileModal(){ensureProfileModal();activeProfileTab="about";render
 function closeProfileModal(){const layer=$("#profile-modal-layer");if(!layer)return;layer.hidden=true;layer.classList.remove("is-open");document.body.classList.remove("profile-modal-open");}
 $("#dock-profile")?.addEventListener("click",openProfileModal);
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeProfileModal();});
+
+
+// Orbit Screen 5: Friends & Social Hub (frontend mock only).
+const friendsMock=[
+ {id:"mika",name:"Mika",tag:"mika_07",initial:"M",avatar:"avatar-mika",status:"online",activity:"Playing Stardew Valley",note:"Usually around in the evening"},
+ {id:"kai",name:"Kai",tag:"kai_dev",initial:"K",avatar:"avatar-kai",status:"online",activity:"Exploring Orbit",note:""},
+ {id:"nova",name:"Nova",tag:"nova.star",initial:"N",avatar:"avatar-nova",status:"idle",activity:"Listening to music",note:""},
+ {id:"jules",name:"Jules",tag:"jules_art",initial:"J",avatar:"avatar-jules",status:"offline",activity:"Last seen recently",note:""},
+ {id:"ren",name:"Ren",tag:"ren.exe",initial:"R",avatar:"avatar-team",status:"offline",activity:"Last seen yesterday",note:""}
+];
+let friendsTab="online";
+function ensureFriendsView(){
+ if($("#friends-view"))return;
+ const view=document.createElement("section");view.id="friends-view";view.className="friends-view";view.hidden=true;
+ view.innerHTML=`
+  <header class="friends-header"><div class="friends-heading"><span class="friends-heading-icon">♧</span><h2>Friends</h2><span class="friends-divider"></span><nav class="friends-tabs"><button data-friends-tab="online" class="active">Online</button><button data-friends-tab="all">All</button><button data-friends-tab="pending">Pending</button><button data-friends-tab="add" class="friends-add-tab">Add Friend</button></nav></div><button class="friends-inbox" type="button" aria-label="Inbox">▣</button></header>
+  <div class="friends-content"><div class="friends-main"><div class="friends-page-title"><div><h1 id="friends-title">Online Friends</h1><p id="friends-subtitle">See who's around and start a conversation.</p></div><span class="friends-count" id="friends-count">2 ONLINE</span></div>
+   <div id="friends-add-form" class="friends-add-form" hidden><h3>ADD FRIEND</h3><p>You can add friends using their Orbit username.</p><form id="friends-add-submit"><input id="friends-username" autocomplete="off" placeholder="Enter a username, e.g. orbit_user" maxlength="32"><button type="submit">Send Friend Request</button></form><small>For this preview, requests are simulated locally.</small></div>
+   <div id="friends-list" class="friends-list"></div>
+  </div><aside class="friends-activity"><h3>ACTIVE NOW</h3><p class="friends-activity-intro">See what your friends are up to.</p><div class="friends-activity-card"><span class="avatar avatar-mika">M<i class="online-dot"></i></span><div><b>Mika</b><small>Playing Stardew Valley</small><small class="activity-time">Active now</small></div></div><div class="friends-activity-card"><span class="avatar avatar-kai">K<i class="online-dot"></i></span><div><b>Kai</b><small>Exploring Orbit</small><small class="activity-time">Active now</small></div></div><div class="friends-activity-empty">When friends start activities, you'll see them here.</div></aside></div>`;
+ $("#main-panel")?.appendChild(view);
+ view.addEventListener("click",e=>{
+  const tab=e.target.closest("[data-friends-tab]")?.dataset.friendsTab;
+  if(tab){friendsTab=tab;renderFriendsView();}
+  const action=e.target.closest("[data-friend-action]")?.dataset.friendAction;
+  const id=e.target.closest("[data-friend-id]")?.dataset.friendId;
+  if(action==="message"){const friend=friendsMock.find(x=>x.id===id);if(friend){closeFriendsView();const d=mock.dms.find(x=>x.id===id);if(d){document.querySelector('[data-dm="'+id+'"]')?.click();}else showOrbitToast("Direct message preview for "+friend.name+" will be added in a later pass.");}}
+  if(action==="more")showOrbitToast("Friend options will be added in a later UI pass.");
+ });
+ $("#friends-add-submit").addEventListener("submit",e=>{e.preventDefault();const input=$("#friends-username"),name=input.value.trim();if(!name)return;showOrbitToast("Friend request to @"+name+" simulated locally.");input.value="";});
+}
+function renderFriendsView(){
+ ensureFriendsView();
+ const view=$("#friends-view");view.hidden=false;
+ document.querySelectorAll("[data-friends-tab]").forEach(b=>b.classList.toggle("active",b.dataset.friendsTab===friendsTab));
+ const titles={online:["Online Friends","See who's around and start a conversation."],all:["All Friends","Everyone you've added on Orbit."],pending:["Pending Requests","Review incoming and outgoing friend requests."],add:["Add a Friend","Connect with people on Orbit."]};
+ $("#friends-title").textContent=titles[friendsTab][0];$("#friends-subtitle").textContent=titles[friendsTab][1];
+ $("#friends-add-form").hidden=friendsTab!=="add";
+ const list=$("#friends-list");const count=$("#friends-count");
+ count.textContent=friendsTab==="online"?"2 ONLINE":friendsTab==="all"?friendsMock.length+" FRIENDS":friendsTab==="pending"?"2 PENDING":"";
+ if(friendsTab==="add"){list.innerHTML='<div class="friends-empty"><span>＋</span><b>Find your people</b><p>Enter an Orbit username above to send a friend request.</p></div>';return;}
+ if(friendsTab==="pending"){list.innerHTML='<div class="friends-pending-card"><div class="pending-avatar">S</div><div><b>Skyline</b><small>Incoming friend request · @skyline</small></div><div class="pending-actions"><button data-pending-action="accept">Accept</button><button data-pending-action="ignore">Ignore</button></div></div><div class="friends-pending-card"><div class="pending-avatar outgoing">T</div><div><b>Taylor</b><small>Outgoing friend request · @taylor</small></div><span class="pending-waiting">Pending</span></div>';return;}
+ const rows=friendsMock.filter(f=>friendsTab==="all"||f.status==="online"||f.status==="idle");
+ list.innerHTML=rows.length?rows.map(f=>'<article class="friend-row" data-friend-id="'+f.id+'"><span class="avatar '+f.avatar+'">'+esc(f.initial)+'<i class="friend-status-dot '+f.status+'"></i></span><div class="friend-row-info"><b>'+esc(f.name)+'</b><small>@'+esc(f.tag)+' · '+esc(f.activity)+'</small></div><span class="friend-presence '+f.status+'">'+(f.status==="online"?"Online":f.status==="idle"?"Idle":"Offline")+'</span><div class="friend-row-actions"><button type="button" data-friend-action="message" data-friend-id="'+f.id+'" aria-label="Message '+esc(f.name)+'">▤</button><button type="button" data-friend-action="more" data-friend-id="'+f.id+'" aria-label="More options">•••</button></div></article>').join(""):'<div class="friends-empty">No friends to show here yet.</div>';
+}
+function openFriendsView(){renderFriendsView();$("#friends-view").hidden=false;closeSidebar();}
+function closeFriendsView(){const v=$("#friends-view");if(v)v.hidden=true;}
+document.querySelector('[data-view="Friends"]')?.addEventListener("click",openFriendsView);
+document.querySelector('[data-view="Nitro"]')?.addEventListener("click",()=>showOrbitToast("Discover will be designed in a later UI pass."));
+document.querySelector('[data-view="Shop"]')?.addEventListener("click",()=>showOrbitToast("Orbit Shop will be designed in a later UI pass."));
