@@ -684,14 +684,18 @@ async function openConversation(conversationId) {
   document.querySelectorAll('.messaging-layout').forEach((layout) => layout.classList.add('conversation-open'));
 }
 
-export async function activateMessagesView(user) {
+export async function activateMessagesView(user, targetConversationId = null) {
   if (!user || !supabase) return;
   if (!currentUser || currentUser.id !== user.id) setMessagingUser(user);
   await loadConversationList();
-  if (activeConversationId) {
-    const exists = conversationCache.some((item) => item.id === activeConversationId);
-    if (exists) await openConversation(activeConversationId);
-    else activeConversationId = null;
+  const requestedId = targetConversationId || activeConversationId;
+  if (requestedId) {
+    const exists = conversationCache.some((item) => item.id === requestedId);
+    if (exists) await openConversation(requestedId);
+    else {
+      activeConversationId = null;
+      if (targetConversationId) setFeedback('That conversation is no longer available.', 'error');
+    }
   }
   renderConversationList();
 }
