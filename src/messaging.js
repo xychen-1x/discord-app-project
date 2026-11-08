@@ -24,6 +24,7 @@ let activeAttachments = [];
 let activeReactions = [];
 let activeBookmarks = new Set();
 let activePins = new Set();
+let activePinOwners = new Map();
 let replyTarget = null;
 let conversationSearch = '';
 let messageSearch = '';
@@ -306,6 +307,7 @@ async function loadMessageAssets(messageIds) {
     activeReactions = [];
     activeBookmarks = new Set();
     activePins = new Set();
+    activePinOwners = new Map();
     return;
   }
   const [attachments, reactions, bookmarks, pins] = await Promise.all([
@@ -320,7 +322,7 @@ async function loadMessageAssets(messageIds) {
       .eq('user_id', currentUser.id)
       .in('message_id', messageIds),
     supabase.from('conversation_pins')
-      .select('message_id')
+      .select('message_id,pinned_by')
       .eq('conversation_id', activeConversationId)
       .in('message_id', messageIds)
   ]);
@@ -332,6 +334,7 @@ async function loadMessageAssets(messageIds) {
   activeReactions = reactions.data || [];
   activeBookmarks = new Set((bookmarks.data || []).map((row) => row.message_id));
   activePins = new Set((pins.data || []).map((row) => row.message_id));
+  activePinOwners = new Map((pins.data || []).map((row) => [row.message_id, row.pinned_by]));
 }
 
 function renderAttachment(attachment, url) {
@@ -410,11 +413,19 @@ function renderMessages() {
     const attachmentMarkup = (attachmentByMessage.get(message.id) || []).map((attachment) => {
       return '<span class="message-attachment-placeholder" data-attachment-placeholder>' + escapeHtml(attachment.file_name) + '</span>';
     }).join('');
+    const pinOwner = activePinOwners.get(message.id);
+    const canUnpin = pinOwner === currentUser.id ||
+      (activeConversation.conversation_type === 'group' && activeConversation.created_by === currentUser.id);
+    const pinAction = activePins.has(message.id)
+      ? (canUnpin
+        ? '<button type="button" data-message-action="unpin" data-message-id="' + escapeHtml(message.id) + '">Unpin</button>'
+        : '<span class="message-pin-status">Pinned</span>')
+      : '<button type="button" data-message-action="pin" data-message-id="' + escapeHtml(message.id) + '">Pin</button>';
     const actionMarkup = deleted ? '' :
       '<div class="message-actions">' +
         '<button type="button" data-message-action="reply" data-message-id="' + escapeHtml(message.id) + '">Reply</button>' +
         '<button type="button" data-message-action="' + (activeBookmarks.has(message.id) ? 'unbookmark' : 'bookmark') + '" data-message-id="' + escapeHtml(message.id) + '">' + (activeBookmarks.has(message.id) ? 'Saved' : 'Save') + '</button>' +
-        '<button type="button" data-message-action="' + (activePins.has(message.id) ? 'unpin' : 'pin') + '" data-message-id="' + escapeHtml(message.id) + '">' + (activePins.has(message.id) ? 'Unpin' : 'Pin') + '</button>' +
+        pinAction +
         (mine ? '<button type="button" data-message-action="edit" data-message-id="' + escapeHtml(message.id) + '">Edit</button><button type="button" data-message-action="delete" data-message-id="' + escapeHtml(message.id) + '">Delete</button>' : '') +
         quickReactions.map((emoji) => '<button class="message-quick-reaction" type="button" data-message-action="react" data-message-id="' + escapeHtml(message.id) + '" data-emoji="' + escapeHtml(emoji) + '" aria-label="React with ' + escapeHtml(emoji) + '">' + escapeHtml(emoji) + '</button>').join('') +
       '</div>';
@@ -1029,8 +1040,10 @@ async function sendCurrentMessage(event) {
       await uploadMessageAttachment(file, data.id);
     } catch (uploadError) {
       console.error('Message attachment upload failed:', uploadError);
-      setComposerFeedback(uploadError.message || 'Attachment upload failed.', 'error');
-      // Keep the message row so the conversation history remains consistent.
+      await supabase.from('messages')
+        .update({ content: 'Attachment upload failed. Please resend the file.' })
+        .eq('id', data.id).eq('sender_id', currentUser.id);
+      setComposerFeedback(uploadError.message || 'Attachment upload failed. Please resend the file.', 'error');
     }
   }
   if (input) input.value = '';
