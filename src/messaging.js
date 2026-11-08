@@ -15,6 +15,7 @@ let navigateToMessages = () => {};
 let messagingInitialized = false;
 let activeConversationId = null;
 let activeConversation = null;
+let muteActionPending = false;
 let conversationCache = [];
 let memberProfiles = new Map();
 let loadedMessages = [];
@@ -279,19 +280,35 @@ function renderComposer() {
     '<p id="chat-feedback" class="message-feedback" role="status" aria-live="polite"></p></div>';
 }
 
+function muteIconMarkup(isMuted) {
+  const stateIcon = isMuted
+    ? '<path d="M16 9l5 6m0-6-5 6"></path>'
+    : '<path d="M16 9a5 5 0 0 1 0 6"></path><path d="M19 5a10 10 0 0 1 0 14"></path>';
+  return '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 9v6h4l5 4V5L8 9H4z"></path>' + stateIcon + '</svg>';
+}
+
+function muteButtonMarkup() {
+  const muted = Boolean(activeConversation.is_muted);
+  const label = muted ? 'Unmute conversation' : 'Mute conversation';
+  return '<button class="message-icon-button" type="button" data-toggle-conversation-mute aria-label="' +
+    label + '" title="' + label + '">' + muteIconMarkup(muted) + '</button>';
+}
+
 function renderChatHeader() {
   const name = conversationName(activeConversation);
   const isGroup = activeConversation.conversation_type === 'group';
+  const isGroupCreator = isGroup && activeConversation.created_by === currentUser.id;
   const participants = (activeConversation.members || []).length;
   const headerActions = [
     '<button class="message-icon-button" type="button" data-toggle-message-search aria-label="Search messages" title="Search messages">⌕</button>',
-    isGroup && activeConversation.created_by === currentUser.id
+    muteButtonMarkup(),
+    isGroupCreator
       ? '<button class="message-icon-button" type="button" data-add-group-members aria-label="Add group members" title="Add members">＋</button>'
       : '',
-    isGroup && activeConversation.created_by === currentUser.id
+    isGroupCreator
       ? '<button class="message-icon-button" type="button" data-edit-group-title aria-label="Edit group name" title="Edit group name">✎</button>'
       : '',
-    isGroup
+    isGroup && !isGroupCreator
       ? '<button class="message-icon-button" type="button" data-leave-group aria-label="Leave group" title="Leave group">↗</button>'
       : ''
   ].join('');
@@ -304,7 +321,6 @@ function renderChatHeader() {
     '</span></div><div class="chat-header-actions">' + headerActions + '</div></header>' +
     '<div id="message-search-bar" class="message-search-bar" hidden><input id="message-search-input" type="search" placeholder="Search messages in this conversation"><button class="message-secondary-button" type="button" data-clear-message-search>Clear</button></div>';
 }
-
 function renderPins() {
   const pins = (activePins.size ? loadedMessages.filter((message) => activePins.has(message.id)) : []);
   if (!pins.length) return '';
@@ -1163,21 +1179,105 @@ function sendTyping() {
   }, 1400);
 }
 
+async function toggleConversationMute() {
+  const conversation = activeConversation;
+  const conversationId = activeConversationId;
+  const actorId = currentUser?.id;
+  if (!conversation || !conversationId || !actorId || muteActionPending) return;
+
+  const nextMuted = !Boolean(conversation.is_muted);
+  const button = $('[data-toggle-conversation-mute]');
+  muteActionPending = true;
+  if (button) button.disabled = true;
+
+  try {
+    const { data, error } = await supabase.from('conversation_members')
+      .update({ is_muted: nextMuted })
+      .eq('conversation_id', conversationId)
+      .eq('user_id', actorId)
+      .select('conversation_id,is_muted')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) throw new Error('Your conversation settings were not updated. Reopen the conversation and try again.');
+    if (currentUser?.id !== actorId) return;
+
+    const muted = Boolean(data.is_muted);
+    const cached = conversationCache.find((item) => item.id === conversationId);
+    if (cached) cached.is_muted = muted;
+
+    if (activeConversationId === conversationId && activeConversation?.id === conversationId) {
+      activeConversation.is_muted = muted;
+      const activeButton = $('[data-toggle-conversation-mute]');
+      if (activeButton) {
+        const label = muted ? 'Unmute conversation' : 'Mute conversation';
+        activeButton.setAttribute('aria-label', label);
+        activeButton.title = label;
+        activeButton.innerHTML = muteIconMarkup(muted);
+      }
+      setComposerFeedback(muted ? 'Conversation muted.' : 'Conversation unmuted.', 'success');
+    }
+
+    renderConversationList();
+  } catch (error) {
+    if (activeConversationId === conversationId) {
+      setComposerFeedback(error.message || 'Conversation mute setting could not be saved.', 'error');
+    }
+    console.error('Conversation mute update failed:', error);
+  } finally {
+    muteActionPending = false;
+    if (button?.isConnected) button.disabled = false;
+    const activeButton = $('[data-toggle-conversation-mute]');
+    if (activeButton) activeButton.disabled = false;
+  }
+}
+
 async function updateGroupTitle() {
-  if (!activeConversation || activeConversation.created_by !== currentUser.id) return;
-  const title = window.prompt('Group name', activeConversation.title || '');
+  const conversation = activeConversation;
+  const conversationId = activeConversationId;
+  const actorId = currentUser?.id;
+  if (!conversation || conversation.conversation_type !== 'group' || conversation.created_by !== actorId) return;
+
+  const title = window.prompt('Group name', conversation.title || '');
   if (title === null) return;
   const value = title.trim();
-  if (!value || value.length > 80) return setComposerFeedback('Group name must be 1 to 80 characters.', 'error');
-  const { error } = await supabase.from('conversations')
-    .update({ title: value }).eq('id', activeConversationId);
-  if (error) {
-    setComposerFeedback(error.message || 'Group name could not be updated.', 'error');
+  if (!value || value.length > 80) {
+    if (activeConversationId === conversationId) {
+      setComposerFeedback('Group name must be 1 to 80 characters.', 'error');
+    }
     return;
   }
-  await loadConversationList();
-  activeConversation = conversationCache.find((item) => item.id === activeConversationId) || activeConversation;
-  renderMessages();
+
+  const { data, error } = await supabase.from('conversations')
+    .update({ title: value })
+    .eq('id', conversationId)
+    .eq('conversation_type', 'group')
+    .eq('created_by', actorId)
+    .select('id,title')
+    .maybeSingle();
+
+  if (error || !data) {
+    if (activeConversationId === conversationId) {
+      setComposerFeedback(error?.message || 'Only the group creator can rename this group.', 'error');
+    }
+    return;
+  }
+  if (currentUser?.id !== actorId) return;
+
+  const cached = conversationCache.find((item) => item.id === conversationId);
+  if (cached) cached.title = data.title;
+
+  if (activeConversationId === conversationId && activeConversation?.id === conversationId) {
+    activeConversation.title = data.title;
+    const headerName = $('.chat-header-copy strong');
+    if (headerName) headerName.textContent = data.title;
+    const groupAvatar = $('.chat-header .conversation-group-avatar');
+    if (groupAvatar) groupAvatar.textContent = initials(data.title);
+    const input = $('#chat-message-input');
+    if (input) input.placeholder = 'Message ' + data.title;
+    setComposerFeedback('Group name updated.', 'success');
+  }
+  renderConversationList();
 }
 
 async function leaveGroup() {
@@ -1187,12 +1287,17 @@ async function leaveGroup() {
     return;
   }
   if (!window.confirm('Leave this group? You will no longer see its messages.')) return;
+  const leavingConversationId = activeConversationId;
+  const leavingUserId = currentUser.id;
   const { error } = await supabase.from('conversation_members')
-    .delete().eq('conversation_id', activeConversationId).eq('user_id', currentUser.id);
+    .delete().eq('conversation_id', leavingConversationId).eq('user_id', leavingUserId);
   if (error) {
-    setComposerFeedback(error.message || 'Could not leave the group.', 'error');
+    if (activeConversationId === leavingConversationId) {
+      setComposerFeedback(error.message || 'Could not leave the group.', 'error');
+    }
     return;
   }
+  if (currentUser?.id !== leavingUserId || activeConversationId !== leavingConversationId) return;
   activeConversationId = null;
   activeConversation = null;
   if (liveChannel) supabase.removeChannel(liveChannel);
@@ -1243,6 +1348,7 @@ function handleMessageClick(event) {
     renderMessages();
     return;
   }
+  if (event.target.closest('[data-toggle-conversation-mute]')) { toggleConversationMute(); return; }
   if (event.target.closest('[data-add-group-members]')) { openFriendPicker('add'); return; }
   if (event.target.closest('[data-edit-group-title]')) { updateGroupTitle(); return; }
   if (event.target.closest('[data-leave-group]')) { leaveGroup(); return; }
