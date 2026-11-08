@@ -275,7 +275,7 @@ function ensureFriendsView(){
    <div id="friends-add-form" class="friends-add-form" hidden><h3>ADD FRIEND</h3><p>You can add friends using their Orbit username.</p><form id="friends-add-submit"><input id="friends-username" autocomplete="off" placeholder="Enter a username, e.g. orbit_user" maxlength="32"><button type="submit">Send Friend Request</button></form><small>For this preview, requests are simulated locally.</small></div>
    <div id="friends-list" class="friends-list"></div>
   </div><aside class="friends-activity"><h3>ACTIVE NOW</h3><p class="friends-activity-intro">See what your friends are up to.</p><div class="friends-activity-card"><span class="avatar avatar-mika">M<i class="online-dot"></i></span><div><b>Mika</b><small>Playing Stardew Valley</small><small class="activity-time">Active now</small></div></div><div class="friends-activity-card"><span class="avatar avatar-kai">K<i class="online-dot"></i></span><div><b>Kai</b><small>Exploring Orbit</small><small class="activity-time">Active now</small></div></div><div class="friends-activity-empty">When friends start activities, you'll see them here.</div></aside></div>`;
- $("#main-panel")?.appendChild(view);
+ $(".main-panel")?.appendChild(view);
  view.addEventListener("click",e=>{
   const tab=e.target.closest("[data-friends-tab]")?.dataset.friendsTab;
   if(tab){friendsTab=tab;renderFriendsView();}
@@ -283,6 +283,8 @@ function ensureFriendsView(){
   const id=e.target.closest("[data-friend-id]")?.dataset.friendId;
   if(action==="message"){const friend=friendsMock.find(x=>x.id===id);if(friend){closeFriendsView();const d=mock.dms.find(x=>x.id===id);if(d){document.querySelector('[data-dm="'+id+'"]')?.click();}else showOrbitToast("Direct message preview for "+friend.name+" will be added in a later pass.");}}
   if(action==="more")showOrbitToast("Friend options will be added in a later UI pass.");
+  const pending=e.target.closest("[data-pending-action]")?.dataset.pendingAction;
+  if(pending)showOrbitToast(pending==="accept"?"Request accepted in local preview.":"Request ignored in local preview.");
  });
  $("#friends-add-submit").addEventListener("submit",e=>{e.preventDefault();const input=$("#friends-username"),name=input.value.trim();if(!name)return;showOrbitToast("Friend request to @"+name+" simulated locally.");input.value="";});
 }
