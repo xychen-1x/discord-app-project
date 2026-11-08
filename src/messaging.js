@@ -223,7 +223,10 @@ async function loadConversationList() {
   for (const row of allMemberRows) {
     if (!membersByConversation.has(row.conversation_id)) membersByConversation.set(row.conversation_id, []);
     const profile = profileMap.get(row.user_id);
-    if (profile) membersByConversation.get(row.conversation_id).push(profile);
+    if (profile) membersByConversation.get(row.conversation_id).push({
+      ...profile,
+      last_read_at: row.last_read_at || null
+    });
   }
   const previewByConversation = new Map();
   for (const message of previewsResult.data || []) {
@@ -400,10 +403,29 @@ function renderMessages() {
     if (!attachmentByMessage.has(attachment.message_id)) attachmentByMessage.set(attachment.message_id, []);
     attachmentByMessage.get(attachment.message_id).push(attachment);
   }
+  const latestOwnMessage = [...loadedMessages].reverse().find((message) =>
+    message.sender_id === currentUser.id && !message.deleted_at
+  );
   const rows = loadedMessages.map((message) => {
     const sender = memberProfiles.get(message.sender_id) || {};
     const mine = message.sender_id === currentUser.id;
     const deleted = Boolean(message.deleted_at);
+    const isLatestOwnMessage = latestOwnMessage?.id === message.id;
+    const seenMembers = isLatestOwnMessage
+      ? (activeConversation.members || []).filter((member) =>
+          member.id !== currentUser.id && member.last_read_at &&
+          new Date(member.last_read_at).getTime() >= new Date(message.created_at).getTime()
+        )
+      : [];
+    const readReceipt = seenMembers.length
+      ? '<div class="message-read-receipt" aria-label="' +
+        escapeHtml(activeConversation.conversation_type === 'group'
+          ? 'Seen by ' + seenMembers.length
+          : 'Seen') +
+        '">' + escapeHtml(activeConversation.conversation_type === 'group'
+          ? 'Seen by ' + seenMembers.length
+          : 'Seen') + '</div>'
+      : '';
     const reply = message.reply_to_id ? loadedMessages.find((candidate) => candidate.id === message.reply_to_id) : null;
     const replySender = reply ? displayProfile(memberProfiles.get(reply.sender_id) || {}) : '';
     const replyMarkup = message.reply_to_id
@@ -436,7 +458,7 @@ function renderMessages() {
         '</time>' + (message.edited_at && !deleted ? '<span class="message-edited">edited</span>' : '') + '</div>' +
         replyMarkup + '<div class="message-text">' + escapeHtml(deleted ? 'This message was deleted.' : (message.content || '')) + '</div>' +
         '<div class="message-attachments">' + attachmentMarkup + '</div>' +
-        renderReactions(message.id) + actionMarkup + '</div></article>';
+        renderReactions(message.id) + actionMarkup + readReceipt + '</div></article>';
   }).join('');
   host.innerHTML = renderChatHeader() + renderPins() +
     '<div id="chat-typing-indicator" class="chat-typing-indicator" aria-live="polite"></div>' +
@@ -496,7 +518,17 @@ async function setupLiveConversation(conversationId) {
       if (activeConversationId !== conversationId) return;
       await loadMessages(conversationId, true);
       await loadConversationList();
-      await markConversationRead(conversationId);
+      if (document.visibilityState === 'visible') {
+        await markConversationRead(conversationId);
+      }
+    })
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'conversation_members',
+      filter: 'conversation_id=eq.' + conversationId
+    }, async () => {
+      if (activeConversationId !== conversationId) return;
+      await loadConversationList();
+      renderMessages();
     })
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'message_reactions'
@@ -1252,5 +1284,11 @@ export function initializeMessaging(options = {}) {
   document.addEventListener('input', handleMessageInput);
   document.addEventListener('change', handleMessageChange);
   document.addEventListener('keydown', handleMessageKeydown);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && activeConversationId &&
+        document.querySelector('.messaging-layout')) {
+      markConversationRead(activeConversationId);
+    }
+  });
 }
 
