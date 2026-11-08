@@ -18,6 +18,8 @@ let activeConversation = null;
 let conversationCache = [];
 let memberProfiles = new Map();
 let loadedMessages = [];
+let hasMoreMessages = false;
+let loadingOlderMessages = false;
 let activeAttachments = [];
 let activeReactions = [];
 let activeBookmarks = new Set();
@@ -431,7 +433,12 @@ function renderMessages() {
       (rows || '<div class="chat-empty-thread"><strong>Start the conversation</strong><p>Send the first message to begin.</p></div>') +
     '</div>' + renderComposer();
   const list = $('#chat-message-list');
-  if (list) list.scrollTop = list.scrollHeight;
+  if (list) {
+    list.scrollTop = list.scrollHeight;
+    list.addEventListener('scroll', () => {
+      if (list.scrollTop < 55) loadOlderMessages();
+    }, { passive: true });
+  }
 }
 
 async function markConversationRead(conversationId) {
@@ -514,7 +521,8 @@ async function loadMessages(conversationId, preserveScroll = false) {
   const { data, error } = await supabase.from('messages')
     .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
     .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
     .limit(100);
   if (error) {
     if (list) list.innerHTML = '<div class="conversation-list-empty"><strong>Could not load messages</strong><p>Check your connection and try again.</p></div>';
@@ -523,7 +531,8 @@ async function loadMessages(conversationId, preserveScroll = false) {
     loadingConversationId = null;
     return;
   }
-  loadedMessages = data || [];
+  hasMoreMessages = (data || []).length === 100;
+  loadedMessages = (data || []).reverse();
   const senderIds = [...new Set(loadedMessages.map((message) => message.sender_id))];
   const { data: senderProfiles, error: senderProfileError } = senderIds.length
     ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', senderIds)
@@ -543,6 +552,100 @@ async function loadMessages(conversationId, preserveScroll = false) {
     }
   }
   loadingConversationId = null;
+}
+
+async function loadOlderMessages() {
+  if (!hasMoreMessages || loadingOlderMessages || !activeConversationId || !loadedMessages.length) return;
+  const list = $('#chat-message-list');
+  if (!list) return;
+  const oldest = loadedMessages[0];
+  const oldHeight = list.scrollHeight;
+  const oldTop = list.scrollTop;
+  loadingOlderMessages = true;
+  const { data, error } = await supabase.from('messages')
+    .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
+    .eq('conversation_id', activeConversationId)
+    .lt('created_at', oldest.created_at)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    .limit(100);
+  if (error) {
+    setComposerFeedback('Older messages could not be loaded.', 'error');
+    console.error('Older message history load failed:', error);
+    loadingOlderMessages = false;
+    return;
+  }
+  const older = (data || []).reverse();
+  hasMoreMessages = (data || []).length === 100;
+  if (older.length) {
+    loadedMessages = [...older, ...loadedMessages];
+    const ids = [...new Set(loadedMessages.map((message) => message.sender_id))];
+    const { data: profiles, error: profileError } = ids.length
+      ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', ids)
+      : { data: [], error: null };
+    if (!profileError) {
+      for (const profile of profiles || []) memberProfiles.set(profile.id, profile);
+    }
+    await loadMessageAssets(loadedMessages.map((message) => message.id));
+    if (activeConversationId && $('#chat-panel')) {
+      renderMessages();
+      const updated = $('#chat-message-list');
+      if (updated) updated.scrollTop = oldTop + (updated.scrollHeight - oldHeight);
+    }
+  }
+  loadingOlderMessages = false;
+}
+
+async function jumpToMessage(messageId) {
+  if (!messageId || !activeConversationId) return;
+  let target = loadedMessages.find((message) => message.id === messageId);
+  if (!target) {
+    const { data: found, error: foundError } = await supabase.from('messages')
+      .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
+      .eq('id', messageId).eq('conversation_id', activeConversationId).maybeSingle();
+    if (foundError || !found) {
+      setComposerFeedback('That message is no longer available.', 'error');
+      return;
+    }
+    const [beforeResult, afterResult] = await Promise.all([
+      supabase.from('messages')
+        .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
+        .eq('conversation_id', activeConversationId)
+        .lt('created_at', found.created_at)
+        .order('created_at', { ascending: false })
+        .order('id', { ascending: false })
+        .limit(50),
+      supabase.from('messages')
+        .select('id,conversation_id,sender_id,content,message_type,reply_to_id,created_at,edited_at,deleted_at')
+        .eq('conversation_id', activeConversationId)
+        .gte('created_at', found.created_at)
+        .order('created_at', { ascending: true })
+        .order('id', { ascending: true })
+        .limit(50)
+    ]);
+    if (beforeResult.error || afterResult.error) {
+      setComposerFeedback('Could not open that message.', 'error');
+      return;
+    }
+    const rows = [...(beforeResult.data || []).reverse(), ...(afterResult.data || [])];
+    const unique = new Map(rows.map((message) => [message.id, message]));
+    loadedMessages = [...unique.values()].sort((a, b) =>
+      new Date(a.created_at) - new Date(b.created_at) || a.id.localeCompare(b.id)
+    );
+    hasMoreMessages = (beforeResult.data || []).length === 50;
+    target = loadedMessages.find((message) => message.id === messageId);
+    const ids = [...new Set(loadedMessages.map((message) => message.sender_id))];
+    const { data: profiles } = ids.length
+      ? await supabase.from('profiles').select('id,username,display_name,avatar_url').in('id', ids)
+      : { data: [] };
+    for (const profile of profiles || []) memberProfiles.set(profile.id, profile);
+    await loadMessageAssets(loadedMessages.map((message) => message.id));
+    renderMessages();
+  }
+  requestAnimationFrame(() => {
+    const node = $('#chat-message-list [data-message-id="' + CSS.escape(messageId) + '"]');
+    node?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 }
 
 async function openConversation(conversationId) {
@@ -974,6 +1077,10 @@ async function updateGroupTitle() {
 
 async function leaveGroup() {
   if (!activeConversation || activeConversation.conversation_type !== 'group') return;
+  if (activeConversation.created_by === currentUser.id) {
+    setComposerFeedback('The group creator cannot leave until ownership transfer is available.', 'error');
+    return;
+  }
   if (!window.confirm('Leave this group? You will no longer see its messages.')) return;
   const { error } = await supabase.from('conversation_members')
     .delete().eq('conversation_id', activeConversationId).eq('user_id', currentUser.id);
@@ -1036,8 +1143,7 @@ function handleMessageClick(event) {
   if (event.target.closest('[data-leave-group]')) { leaveGroup(); return; }
   const jump = event.target.closest('[data-jump-message]');
   if (jump) {
-    const target = $('#chat-message-list [data-message-id="' + CSS.escape(jump.dataset.jumpMessage) + '"]');
-    target?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    jumpToMessage(jump.dataset.jumpMessage);
     return;
   }
   const action = event.target.closest('[data-message-action]');
