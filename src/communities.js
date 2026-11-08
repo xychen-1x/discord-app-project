@@ -147,12 +147,12 @@ async function openCommunity(id, selectFirst = true) {
     if (!state.activeChannel && state.channels.length) state.activeChannel = state.channels.find((channel) => channel.channel_type === "text") || state.channels[0];
     await renderCommunityDetail();
     if (state.activeChannel) await loadChannelMessages();
+    else renderChannelEmpty();
   } catch (error) {
     const detail = $("#community-detail");
     if (detail) detail.innerHTML = `<div class="community-channel-placeholder"><h3>Could not open community</h3><p>${escapeHtml(error.message || "Please try again.")}</p></div>`;
     console.error("Community open failed:", error);
   }
-  else renderChannelEmpty();
   renderCommunityList();
 }
 
