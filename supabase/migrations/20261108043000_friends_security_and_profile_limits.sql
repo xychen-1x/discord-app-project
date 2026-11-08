@@ -24,18 +24,5 @@ alter table public.profiles drop constraint if exists profiles_bio_length;
 alter table public.profiles add constraint profiles_bio_length
   check (bio is null or char_length(bio) <= 190);
 
--- Enable database-change events for friend requests, friendships, and user presence.
-do $
-declare table_to_add text;
-begin
-  foreach table_to_add in array array['friend_requests','friendships','user_status','blocked_users'] loop
-    if not exists (
-      select 1 from pg_publication_tables
-      where pubname = 'supabase_realtime'
-        and schemaname = 'public'
-        and tablename = table_to_add
-    ) then
-      execute format('alter publication supabase_realtime add table public.%I', table_to_add);
-    end if;
-  end loop;
-end $;
+-- Enable database-change events for friend requests, friendships, user presence, and blocks.
+alter publication supabase_realtime add table public.friend_requests, public.friendships, public.user_status, public.blocked_users;
