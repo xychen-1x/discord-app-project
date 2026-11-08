@@ -25,4 +25,4 @@ alter table public.profiles add constraint profiles_bio_length
   check (bio is null or char_length(bio) <= 190);
 
 -- Enable database-change events for friend requests, friendships, and user presence.
-alter publication supabase_realtime add table public.friend_requests, public.friendships, public.user_status;
+alter publication supabase_realtime add table public.friend_requests, public.friendships, public.user_status, public.blocked_users;
