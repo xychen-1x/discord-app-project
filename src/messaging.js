@@ -32,6 +32,7 @@ let liveChannel = null;
 let listChannel = null;
 let typingTimer = null;
 let typingStopTimer = null;
+let messageSearchTimer = null;
 let loadingConversationId = null;
 
 export function renderMessagesView() {
@@ -672,7 +673,7 @@ async function openFriendPicker(mode) {
   $('#new-group-name-field').hidden = !isGroup;
   $('#new-group-name').value = '';
   $('#new-conversation-search').value = '';
-  $('#new-conversation-title').textContent = mode === 'direct' ? 'New message' :
+  $('#message-modal-title').textContent = mode === 'direct' ? 'New message' :
     mode === 'add' ? 'Add group members' : 'Create a group';
   $('#new-conversation-error').textContent = '';
   const footer = $('#new-conversation-submit');
@@ -1080,8 +1081,8 @@ function handleMessageInput(event) {
   if (event.target.id === 'message-search-input') {
     const value = event.target.value.trim();
     messageSearch = value;
-    clearTimeout(typingTimer);
-    typingTimer = setTimeout(() => {
+    clearTimeout(messageSearchTimer);
+    messageSearchTimer = setTimeout(() => {
       if (value) loadMessagesSearch(value);
       else loadMessages(activeConversationId, true);
     }, 280);
@@ -1089,12 +1090,27 @@ function handleMessageInput(event) {
   if (event.target.id === 'chat-message-input') sendTyping();
 }
 
+function handleMessageKeydown(event) {
+  if (event.target.id !== 'chat-message-input') return;
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    event.target.closest('form')?.requestSubmit();
+  }
+}
+
 function handleMessageChange(event) {
   if (event.target.name === 'message-friend') {
     const id = event.target.value;
     if (event.target.checked) {
       if (pickerMode === 'direct') selectedFriendIds = new Set([id]);
-      else selectedFriendIds.add(id);
+      else {
+        if (selectedFriendIds.size >= 19) {
+          event.target.checked = false;
+          notifyPickerError('A group can contain up to 20 people, including you.');
+          return;
+        }
+        selectedFriendIds.add(id);
+      }
     } else selectedFriendIds.delete(id);
     renderFriendPicker();
   }
@@ -1112,5 +1128,6 @@ export function initializeMessaging(options = {}) {
   document.addEventListener('submit', handleMessageSubmit, true);
   document.addEventListener('input', handleMessageInput);
   document.addEventListener('change', handleMessageChange);
+  document.addEventListener('keydown', handleMessageKeydown);
 }
 
