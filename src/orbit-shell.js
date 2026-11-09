@@ -308,3 +308,110 @@ function closeFriendsView(){const v=$("#friends-view");if(v)v.hidden=true;}
 document.querySelector('[data-view="Friends"]')?.addEventListener("click",openFriendsView);
 document.querySelector('[data-view="Nitro"]')?.addEventListener("click",()=>showOrbitToast("Discover will be designed in a later UI pass."));
 document.querySelector('[data-view="Shop"]')?.addEventListener("click",()=>showOrbitToast("Orbit Shop will be designed in a later UI pass."));
+
+
+// Orbit Screen 11: Voice Channels & Live Rooms (frontend mock only).
+// This screen does not access microphones, cameras, screen capture, Supabase, or realtime services.
+(() => {
+  const rooms = [
+    {id:"lounge",name:"Lounge",type:"voice",topic:"Open conversation",count:7,people:["Mika","Kai","Nova","Jules","Ren"]},
+    {id:"focus",name:"Focus Room",type:"voice",topic:"Quiet co-working",count:3,people:["Mika","Ren"]},
+    {id:"hangout",name:"Late Night Hangout",type:"voice",topic:"Relax and chat",count:0,people:[]},
+    {id:"stage",name:"Creator Q&A",type:"stage",topic:"Community stage event",count:12,people:["Nova","Mika","Kai"]}
+  ];
+  const people = [
+    {name:"Aevryn",initial:"A",role:"You",tone:"self"},
+    {name:"Mika",initial:"M",role:"Member",tone:"violet"},
+    {name:"Kai",initial:"K",role:"Member",tone:"blue"},
+    {name:"Nova",initial:"N",role:"Speaker",tone:"pink"},
+    {name:"Jules",initial:"J",role:"Member",tone:"green"},
+    {name:"Ren",initial:"R",role:"Member",tone:"amber"}
+  ];
+  const state = {room:"lounge",joined:false,muted:false,deafened:false,camera:false,sharing:false};
+  const $v = (s,r=document) => r.querySelector(s);
+  const safe = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const currentRoom = () => rooms.find(r=>r.id===state.room) || rooms[0];
+  function toastVoice(message){
+    let t=$v("#orbit-toast");
+    if(!t){t=document.createElement("div");t.id="orbit-toast";t.className="orbit-toast";t.setAttribute("role","status");document.body.appendChild(t);}
+    t.textContent=message;t.classList.add("visible");clearTimeout(toastVoice.timer);toastVoice.timer=setTimeout(()=>t.classList.remove("visible"),2400);
+  }
+  function ensureVoice(){
+    if($v("#orbit-voice-view"))return;
+    const style=document.createElement("style");style.id="orbit-voice-style";
+    style.textContent=[
+      ".ov-view{position:absolute;inset:56px 0 0;z-index:25;display:flex;flex-direction:column;background:#23252b;color:#e7e9ef;overflow:auto}",
+      ".ov-view[hidden]{display:none}.ov-top{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:20px 24px;border-bottom:1px solid #393b44;background:#272930}",
+      ".ov-top h1{margin:5px 0;font-size:22px}.ov-top p{margin:0;color:#a8adba;font-size:11px}.ov-eyebrow{color:#9299a8;font-size:9px;font-weight:800;letter-spacing:1.5px}",
+      ".ov-top-actions{display:flex;align-items:center;gap:10px}.ov-preview{padding:6px 9px;border:1px solid #4a4d59;border-radius:20px;color:#c0c5d1;font-size:8px}.ov-close{width:34px;height:34px;border:1px solid #484b55;border-radius:8px;background:#30323a;color:#c9ced8;font-size:19px}",
+      ".ov-layout{display:grid;grid-template-columns:240px minmax(0,1fr) 210px;flex:1}.ov-sidebar,.ov-right{padding:17px 12px;background:#25272d}.ov-sidebar{border-right:1px solid #383a43}.ov-right{border-left:1px solid #383a43}",
+      ".ov-label{padding:0 7px 10px;color:#a7adba;font-size:9px;font-weight:800;letter-spacing:1px}.ov-room{display:flex;align-items:center;gap:9px;width:100%;padding:10px 8px;border:0;border-radius:8px;background:transparent;color:#c8ccd5;text-align:left}.ov-room:hover,.ov-room.active{background:#363943;color:white}.ov-room-icon{display:grid;place-items:center;width:29px;height:29px;border-radius:8px;background:#41445a;color:#c2caff}.ov-room-copy{display:grid;gap:3px;min-width:0;flex:1}.ov-room-copy b{font-size:10px}.ov-room-copy small{color:#9299a8;font-size:8px}.ov-room-count{color:#aab0bd;font-size:9px}.ov-main{display:flex;flex-direction:column;min-width:0;padding:20px}.ov-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:17px}.ov-heading h2{margin:0 0 5px;font-size:18px}.ov-heading p{margin:0;color:#9ca3b1;font-size:10px}.ov-live{padding:6px 9px;border:1px solid #3f5c50;border-radius:20px;background:#293a33;color:#9fe0bd;font-size:8px}",
+      ".ov-stage{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;padding:12px;border:1px solid #4c4162;border-radius:9px;background:#393047}.ov-stage b{font-size:10px}.ov-stage p{margin:4px 0 0;color:#b8adc9;font-size:9px}.ov-stage button{padding:8px 10px;border-radius:6px;background:#8b6ac4;color:white;font-size:9px}",
+      ".ov-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.ov-person{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:138px;padding:12px 6px;border:1px solid #3e414b;border-radius:10px;background:linear-gradient(145deg,#30333c,#292b32)}.ov-person.speaking{border-color:#6578db;box-shadow:0 0 0 1px #6578db33}.ov-avatar{display:grid;place-items:center;width:54px;height:54px;margin-bottom:8px;border:3px solid #454956;border-radius:50%;background:#4b5270;color:white;font-size:18px;font-weight:800}.ov-avatar.self{background:linear-gradient(145deg,#5865f2,#8a75dd)}.ov-avatar.violet{background:linear-gradient(145deg,#7655a8,#a77bd2)}.ov-avatar.blue{background:linear-gradient(145deg,#3d709e,#67a5d5)}.ov-avatar.pink{background:linear-gradient(145deg,#a35c85,#d78bad)}.ov-avatar.green{background:linear-gradient(145deg,#3c846f,#6bb79a)}.ov-avatar.amber{background:linear-gradient(145deg,#9a7442,#d4a45e)}.ov-name{font-size:10px}.ov-role{margin-top:3px;color:#969dab;font-size:8px}.ov-speaking-bars{display:flex;gap:2px;height:9px;margin-top:5px}.ov-speaking-bars i{width:3px;border-radius:3px;background:#83a1ff}.ov-speaking-bars i:nth-child(1){height:4px}.ov-speaking-bars i:nth-child(2){height:9px}.ov-speaking-bars i:nth-child(3){height:6px}",
+      ".ov-empty{grid-column:1/-1;display:grid;place-items:center;min-height:190px;padding:20px;border:1px dashed #454955;border-radius:10px;text-align:center}.ov-empty b{margin-top:8px;font-size:12px}.ov-empty p{max-width:260px;color:#9299a8;font-size:10px;line-height:1.5}",
+      ".ov-controls{display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:18px}.ov-control{display:grid;place-items:center;gap:4px;min-width:56px;padding:9px 8px;border:1px solid #454853;border-radius:8px;background:#30333b;color:#d8dce5;font-size:16px}.ov-control small{font-size:8px;color:#aab0bd}.ov-control.active{border-color:#6875e8;background:#41476d;color:white}.ov-join,.ov-leave{padding:11px 18px;border-radius:8px;background:#5865f2;color:white;font-size:10px;font-weight:700}.ov-leave{background:#9c4149}",
+      ".ov-right h3{margin:0 0 12px;color:#aeb4c0;font-size:9px;letter-spacing:1px}.ov-stat{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid #393c45;color:#aeb4c0;font-size:9px}.ov-stat b{color:#e0e3e9}.ov-member{display:flex;align-items:center;gap:8px;margin-top:12px;color:#cbd0da;font-size:9px}.ov-member span{display:grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#454b66;color:white}.ov-member small{display:block;color:#8f97a6;font-size:8px}",
+      ".ov-settings{position:fixed;z-index:150;inset:0;display:grid;place-items:center;padding:15px}.ov-settings[hidden]{display:none}.ov-settings-bg{position:absolute;inset:0;background:#08090bd9}.ov-settings-card{position:relative;width:min(400px,100%);padding:20px;border:1px solid #484b56;border-radius:12px;background:#2b2e36}.ov-settings-card header{display:flex;justify-content:space-between}.ov-settings-card h3{margin:0;font-size:16px}.ov-settings-card p,.ov-settings-note{color:#aeb4c0;font-size:10px;line-height:1.6}.ov-settings-card header button{background:transparent;color:#c8ced8;font-size:20px}.ov-settings-note{padding:10px;border-radius:7px;background:#3b352b;color:#d9c89f}",
+      "@media(max-width:1050px){.ov-layout{grid-template-columns:210px minmax(0,1fr)}.ov-right{display:none}}",
+      "@media(max-width:700px){.ov-view{inset:0 0 58px}.ov-top{padding:14px 12px}.ov-top h1{font-size:18px}.ov-top p{font-size:9px}.ov-preview{display:none}.ov-layout{display:flex;flex-direction:column}.ov-sidebar{order:2;padding:10px;border-top:1px solid #3b3e47;border-right:0}.ov-main{order:1;padding:14px 11px}.ov-room-list{display:flex;gap:6px;overflow:auto}.ov-room{flex:0 0 145px;padding:7px}.ov-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.ov-person{min-height:120px}.ov-controls{gap:5px}.ov-control{min-width:49px;padding:8px 6px}.ov-stage{align-items:flex-start}}"
+    ].join("");
+    document.head.appendChild(style);
+    const view=document.createElement("section");view.id="orbit-voice-view";view.className="ov-view";view.hidden=true;
+    view.innerHTML='<header class="ov-top"><div><span class="ov-eyebrow">COMMUNITY VOICE</span><h1>Voice &amp; Live Rooms</h1><p>Join a room, talk with your community, or host a stage event.</p></div><div class="ov-top-actions"><span class="ov-preview">LOCAL UI PREVIEW</span><button class="ov-close" data-ov-close aria-label="Close voice center">×</button></div></header><div class="ov-layout"><aside class="ov-sidebar"><div class="ov-label">VOICE CHANNELS</div><div id="ov-room-list" class="ov-room-list"></div><div class="ov-label" style="margin-top:18px">STAGE CHANNELS</div><div id="ov-stage-list"></div></aside><main class="ov-main"><div id="ov-main-content"></div></main><aside class="ov-right"><h3>ROOM DETAILS</h3><div id="ov-room-details"></div></aside></div>';
+    document.querySelector(".main-panel")?.appendChild(view);
+    const settings=document.createElement("div");settings.id="ov-settings";settings.className="ov-settings";settings.hidden=true;
+    settings.innerHTML='<button class="ov-settings-bg" data-ov-settings-close aria-label="Close settings"></button><section class="ov-settings-card" role="dialog" aria-modal="true" aria-labelledby="ov-settings-title"><header><h3 id="ov-settings-title">Voice settings</h3><button data-ov-settings-close aria-label="Close">×</button></header><p>Display-only preferences. No device permissions are requested.</p><div class="ov-settings-note">Microphone, camera, screen sharing, and live audio are not connected yet. These controls only preview the interface.</div></section>';
+    document.body.appendChild(settings);
+    view.addEventListener("click",onVoiceClick);
+    settings.addEventListener("click",e=>{if(e.target.closest("[data-ov-settings-close]"))settings.hidden=true;});
+    renderVoice();
+  }
+  function renderVoice(){
+    const r=currentRoom(),stage=r.type==="stage";
+    const open=rooms.filter(x=>x.type==="voice"),stages=rooms.filter(x=>x.type==="stage");
+    $v("#ov-room-list").innerHTML=open.map(x=>'<button class="ov-room '+(x.id===r.id?"active":"")+'" data-ov-room="'+x.id+'"><span class="ov-room-icon">◖</span><span class="ov-room-copy"><b>'+safe(x.name)+'</b><small>'+safe(x.topic)+'</small></span><span class="ov-room-count">'+x.count+'</span></button>').join("");
+    $v("#ov-stage-list").innerHTML=stages.map(x=>'<button class="ov-room '+(x.id===r.id?"active":"")+'" data-ov-room="'+x.id+'"><span class="ov-room-icon">▤</span><span class="ov-room-copy"><b>'+safe(x.name)+'</b><small>Live stage event</small></span><span class="ov-room-count">LIVE</span></button>').join("");
+    const visible=state.joined?people.slice(0,r.id==="focus"?3:6):people.slice(1,r.id==="focus"?3:6);
+    const cards=visible.map((p,i)=>'<article class="ov-person '+(state.joined&&i===1?"speaking":"")+'"><span class="ov-avatar '+p.tone+'">'+safe(p.initial)+'</span><b class="ov-name">'+safe(p.name)+'</b><small class="ov-role">'+safe(p.role)+'</small>'+(state.joined&&i===1?'<span class="ov-speaking-bars"><i></i><i></i><i></i></span>':"")+'</article>').join("");
+    $v("#ov-main-content").innerHTML='<div class="ov-heading"><div><h2>'+safe(r.name)+'</h2><p>'+safe(r.topic)+' · '+(r.count+(state.joined?1:0))+' participants</p></div><span class="ov-live">● '+(stage?"STAGE LIVE":"VOICE ROOM")+'</span></div>'+(stage?'<div class="ov-stage"><div><b>Community Creator Q&amp;A</b><p>Listeners can raise a hand to request to speak.</p></div><button data-ov-action="raise">Raise hand</button></div>':"")+'<div class="ov-grid">'+(cards||'<div class="ov-empty"><b>This room is quiet</b><p>Join the room to start a conversation with your community.</p></div>')+'</div><div class="ov-controls">'+(state.joined?'<button class="ov-control '+(state.muted?"active":"")+'" data-ov-action="mute">♩<small>'+(state.muted?"Unmute":"Mute")+'</small></button><button class="ov-control '+(state.deafened?"active":"")+'" data-ov-action="deafen">◖<small>'+(state.deafened?"Undeafen":"Deafen")+'</small></button><button class="ov-control '+(state.camera?"active":"")+'" data-ov-action="camera">▣<small>Camera</small></button><button class="ov-control '+(state.sharing?"active":"")+'" data-ov-action="share">▧<small>Share</small></button><button class="ov-control" data-ov-action="settings">⚙<small>Settings</small></button><button class="ov-leave" data-ov-action="leave">Leave room</button>':'<button class="ov-join" data-ov-action="join">'+(stage?"Join as listener":"Join voice room")+'</button><button class="ov-control" data-ov-action="settings">⚙<small>Settings</small></button>')+'</div>';
+    $v("#ov-room-details").innerHTML='<div class="ov-stat"><span>Room type</span><b>'+(stage?"Stage":"Voice")+'</b></div><div class="ov-stat"><span>Participants</span><b>'+(r.count+(state.joined?1:0))+'</b></div><div class="ov-stat"><span>Your status</span><b>'+(state.joined?"Joined (mock)":"Not connected")+'</b></div>'+visible.map(p=>'<div class="ov-member"><span>'+safe(p.initial)+'</span><div>'+safe(p.name)+'<small>'+safe(p.role)+'</small></div></div>').join("");
+  }
+  function openVoice(roomId){
+    ensureVoice();if(roomId&&rooms.some(r=>r.id===roomId))state.room=roomId;
+    $v("#orbit-voice-view").hidden=false;
+    document.querySelector(".main-header")?.setAttribute("hidden","");
+    document.querySelector(".chat-layout")?.setAttribute("hidden","");
+    $v("#friends-view")?.setAttribute("hidden","");
+    $v("#orbit-inbox-view")?.setAttribute("hidden","");
+    closeSidebar();renderVoice();
+  }
+  function closeVoice(){
+    const v=$v("#orbit-voice-view");if(!v)return;v.hidden=true;
+    document.querySelector(".main-header")?.removeAttribute("hidden");
+    document.querySelector(".chat-layout")?.removeAttribute("hidden");
+  }
+  function onVoiceClick(e){
+    const roomButton=e.target.closest("[data-ov-room]");
+    if(roomButton){state.room=roomButton.dataset.ovRoom;state.joined=false;state.muted=false;state.deafened=false;state.camera=false;state.sharing=false;renderVoice();return;}
+    if(e.target.closest("[data-ov-close]")){closeVoice();return;}
+    const action=e.target.closest("[data-ov-action]")?.dataset.ovAction;if(!action)return;
+    if(action==="join"){state.joined=true;renderVoice();toastVoice("Joined "+currentRoom().name+" in local preview.");}
+    if(action==="leave"){state.joined=false;state.muted=false;state.deafened=false;state.camera=false;state.sharing=false;renderVoice();toastVoice("Left the room in local preview.");}
+    if(action==="mute"){state.muted=!state.muted;renderVoice();}
+    if(action==="deafen"){state.deafened=!state.deafened;if(state.deafened)state.muted=true;renderVoice();}
+    if(action==="camera"){state.camera=!state.camera;renderVoice();toastVoice("Camera control is visual only in this preview.");}
+    if(action==="share"){state.sharing=!state.sharing;renderVoice();toastVoice("Screen sharing is not connected yet.");}
+    if(action==="settings")$v("#ov-settings").hidden=false;
+    if(action==="raise")toastVoice("Hand raised in local preview.");
+  }
+  document.addEventListener("click",e=>{
+    if(e.target.closest(".channel-static")){openVoice("lounge");return;}
+    if(e.target.closest("[aria-label='Mute microphone']")||e.target.closest("[aria-label='Deafen']")){openVoice("lounge");return;}
+  });
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){
+      if($v("#ov-settings")&&!$v("#ov-settings").hidden)$v("#ov-settings").hidden=true;
+      else closeVoice();
+    }
+  });
+})();
