@@ -44,6 +44,7 @@ function ensureServerMenu(){
         <button class="server-menu-action boost-action" data-server-action="boost"><span class="menu-action-icon">✦</span><span><b>Server Boost</b><small>Unlock more community perks</small></span><span class="menu-chevron">›</span></button>
         <button class="server-menu-action invite-action" data-server-action="invite"><span class="menu-action-icon">↗</span><span><b>Invite People</b><small>Share an invite to this server</small></span><span class="menu-chevron">›</span></button>
         <button class="server-menu-action" data-server-action="settings"><span class="menu-action-icon">⚙</span><span><b>Server Settings</b><small>Manage your server preferences</small></span><span class="menu-chevron">›</span></button>
+        <button class="server-menu-action" data-server-action="moderation"><span class="menu-action-icon">◆</span><span><b>Moderation Center</b><small>Review reports and member safety</small></span><span class="menu-chevron">›</span></button>
       </div>
       <div class="server-menu-divider"></div>
       <div class="server-menu-section-heading"><div><b>Channel visibility</b><p>Choose which channel groups appear in the sidebar.</p></div><span class="visibility-label">DISPLAY</span></div>
@@ -58,7 +59,7 @@ function ensureServerMenu(){
   layer.addEventListener("click",e=>{
     if(e.target.closest("[data-server-menu-close]"))closeServerMenu();
     const action=e.target.closest("[data-server-action]")?.dataset.serverAction;
-    if(action){const labels={boost:"Server Boost screen is planned for a later UI pass.",invite:"Invite flow will be connected after the UI phase.",settings:""};if(action==="settings"){closeServerMenu();openPermissionsScreen();}else showOrbitToast(labels[action]);}
+    if(action){const labels={boost:"Server Boost screen is planned for a later UI pass.",invite:"Invite flow will be connected after the UI phase.",settings:""};if(action==="moderation"){closeServerMenu();document.dispatchEvent(new CustomEvent("orbit:open-moderation"));}else if(action==="settings"){closeServerMenu();openPermissionsScreen();}else showOrbitToast(labels[action]);}
   });
   layer.addEventListener("change",e=>{
     const key=e.target.dataset.channelVisibility;
