@@ -59,7 +59,7 @@ function ensureServerMenu(){
   layer.addEventListener("click",e=>{
     if(e.target.closest("[data-server-menu-close]"))closeServerMenu();
     const action=e.target.closest("[data-server-action]")?.dataset.serverAction;
-    if(action){const labels={boost:"Server Boost screen is planned for a later UI pass.",invite:"Invite flow will be connected after the UI phase.",settings:""};if(action==="moderation"){closeServerMenu();document.dispatchEvent(new CustomEvent("orbit:open-moderation"));}else if(action==="settings"){closeServerMenu();openPermissionsScreen();}else showOrbitToast(labels[action]);}
+    if(action){const labels={boost:"Server Boost screen is planned for a later UI pass.",invite:"",settings:""};if(action==="moderation"){closeServerMenu();document.dispatchEvent(new CustomEvent("orbit:open-moderation"));}else if(action==="settings"){closeServerMenu();openPermissionsScreen();}else if(action==="invite"){const server=activeServerMenu?.name||"Stargazers";closeServerMenu();document.dispatchEvent(new CustomEvent("orbit:open-invites",{detail:{server}}));}else showOrbitToast(labels[action]);}
   });
   layer.addEventListener("change",e=>{
     const key=e.target.dataset.channelVisibility;
