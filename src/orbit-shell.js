@@ -415,3 +415,167 @@ document.querySelector('[data-view="Shop"]')?.addEventListener("click",()=>showO
     }
   });
 })();
+
+// Orbit Screen 12: Server Events & Scheduled Events (frontend-only local mock).
+// No Supabase, database, authentication, push notifications, or realtime calls.
+(() => {
+  const events = [
+    {id:1201,title:"Orbit Community Night",description:"Meet the community, share what you are building, and catch up with everyone.",date:"2026-11-12",time:"19:00",type:"voice",place:"Lounge",host:"Aevryn",attending:28,interested:14,status:"upcoming",rsvp:"going",reminder:true},
+    {id:1202,title:"AI & Future Technology",description:"A friendly discussion about new AI tools, emerging technology, and ideas for the future.",date:"2026-11-15",time:"16:30",type:"stage",place:"Creator Q&A",host:"Nova",attending:46,interested:21,status:"upcoming",rsvp:"interested",reminder:false},
+    {id:1203,title:"Pixel Art Workshop",description:"A collaborative creative session. Bring a small idea and work on it with other members.",date:"2026-11-18",time:"14:00",type:"external",place:"Community Studio",host:"Mika",attending:17,interested:9,status:"upcoming",rsvp:"none",reminder:false},
+    {id:1204,title:"Weekly Study Session",description:"A quiet focus session with short breaks and a group check-in.",date:"2026-11-03",time:"18:00",type:"voice",place:"Focus Room",host:"Kai",attending:12,interested:5,status:"past",rsvp:"none",reminder:false}
+  ];
+  const eventState = {filter:"upcoming",query:"",editing:null,detail:null};
+  const event$ = (s,r=document) => r.querySelector(s);
+  const eventEsc = s => String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const eventDate = (date,time) => new Date(date+"T"+time);
+  const eventFormat = (date,time) => eventDate(date,time).toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"})+" · "+eventDate(date,time).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"});
+  const eventTypeName = type => ({voice:"Voice channel",stage:"Stage event",external:"External location"}[type]||"Community event");
+  const eventIcon = type => ({voice:"◖",stage:"▤",external:"↗"}[type]||"✦");
+  function eventToast(message){
+    if(typeof showOrbitToast==="function"){showOrbitToast(message);return;}
+    let toast=event$("#orbit-toast");
+    if(!toast){toast=document.createElement("div");toast.id="orbit-toast";toast.className="orbit-toast";toast.setAttribute("role","status");document.body.appendChild(toast);}
+    toast.textContent=message;toast.classList.add("visible");clearTimeout(eventToast.timer);eventToast.timer=setTimeout(()=>toast.classList.remove("visible"),2400);
+  }
+  function installEventsStyles(){
+    if(event$("#orbit-events-style"))return;
+    const style=document.createElement("style");style.id="orbit-events-style";
+    style.textContent=[
+      ".oe-view{position:absolute;inset:56px 0 0;z-index:24;display:flex;flex-direction:column;overflow:auto;background:#23252b;color:#e8eaf0}.oe-view[hidden],.oe-modal[hidden]{display:none}",
+      ".oe-nav{position:relative}.oe-nav:before{content:'';position:absolute;left:-9px;top:7px;bottom:7px;width:3px;border-radius:3px;background:#8b91ff}.oe-top{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:22px 25px;border-bottom:1px solid #383a43;background:#272930}.oe-kicker{color:#9299a8;font-size:9px;font-weight:800;letter-spacing:1.5px}.oe-top h1{margin:5px 0 4px;font-size:23px;letter-spacing:-.5px}.oe-top p{margin:0;color:#a8adba;font-size:11px}.oe-top-actions{display:flex;align-items:center;gap:9px}.oe-create{padding:10px 14px;border:0;border-radius:8px;background:#5865f2;color:white;font-size:10px;font-weight:800}.oe-create:hover{background:#6b76ff}.oe-content{width:100%;max-width:1220px;margin:0 auto;padding:21px 24px 30px}.oe-hero{position:relative;display:flex;align-items:center;justify-content:space-between;gap:18px;min-height:144px;padding:23px 25px;overflow:hidden;border:1px solid #4a4c75;border-radius:13px;background:radial-gradient(ellipse at 80% 10%,#6469ba55,transparent 40%),linear-gradient(110deg,#343651,#292d40 65%,#34304b)}.oe-hero:after{content:'✦';position:absolute;right:12%;top:-33px;color:#a7aaff22;font-size:160px;line-height:1}.oe-hero-copy{position:relative;z-index:1;max-width:580px}.oe-hero-label{color:#c0c4ff;font-size:9px;font-weight:800;letter-spacing:1.4px}.oe-hero h2{margin:8px 0 5px;font-size:20px}.oe-hero p{max-width:440px;margin:0;color:#b8bdcc;font-size:10px;line-height:1.6}.oe-hero-stats{position:relative;z-index:1;display:flex;gap:22px;padding-right:10px}.oe-stat{display:grid;gap:3px}.oe-stat b{font-size:21px}.oe-stat small{color:#aeb4c4;font-size:8px;letter-spacing:.7px;text-transform:uppercase}.oe-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:21px 0 15px}.oe-tabs{display:flex;gap:5px;padding:4px;border:1px solid #3d404a;border-radius:9px;background:#292c33}.oe-tab{padding:8px 12px;border:0;border-radius:6px;background:transparent;color:#aeb4c0;font-size:9px;font-weight:700}.oe-tab.active{background:#454a65;color:#fff}.oe-search{display:flex;align-items:center;gap:8px;width:min(250px,45%);padding:8px 10px;border:1px solid #41444e;border-radius:8px;background:#292c33;color:#aeb4c0}.oe-search input{width:100%;border:0;outline:0;background:transparent;color:#e8eaf0;font-size:10px}.oe-grid-layout{display:grid;grid-template-columns:minmax(0,1fr) 245px;gap:16px;align-items:start}.oe-section-head{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}.oe-section-head h3{margin:0;color:#c9ced8;font-size:10px;letter-spacing:.8px;text-transform:uppercase}.oe-section-head span{color:#8f97a6;font-size:9px}.oe-event-list{display:grid;gap:10px}.oe-card{display:grid;grid-template-columns:65px minmax(0,1fr) auto;gap:13px;align-items:center;padding:13px;border:1px solid #3e414b;border-radius:10px;background:linear-gradient(120deg,#30333b,#2a2d34);transition:border-color .16s,transform .16s}.oe-card:hover{border-color:#656b92;transform:translateY(-1px)}.oe-datebox{display:grid;place-items:center;align-content:center;min-height:69px;border:1px solid #4b4e62;border-radius:8px;background:#383b50}.oe-datebox small{color:#b7bce1;font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase}.oe-datebox b{margin-top:3px;font-size:23px;line-height:1.1}.oe-datebox span{margin-top:3px;color:#aeb4c0;font-size:8px}.oe-card-main{min-width:0}.oe-card-type{display:flex;align-items:center;gap:6px;margin-bottom:5px;color:#aeb5ff;font-size:8px;font-weight:800;letter-spacing:.6px;text-transform:uppercase}.oe-card h4{margin:0 0 5px;overflow:hidden;color:#f0f1f5;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.oe-card-meta{display:flex;flex-wrap:wrap;gap:9px;color:#9ea5b3;font-size:9px}.oe-card-meta span{white-space:nowrap}.oe-card-bottom{display:flex;align-items:center;gap:8px;margin-top:8px}.oe-avatar-stack{display:flex;padding-left:2px}.oe-avatar-stack i{display:grid;place-items:center;width:19px;height:19px;margin-left:-3px;border:2px solid #30333b;border-radius:50%;background:#596184;color:white;font-size:7px;font-style:normal}.oe-card-bottom small{color:#9ea5b3;font-size:8px}.oe-card-actions{display:grid;justify-items:end;gap:7px}.oe-rsvp{padding:8px 10px;border:1px solid #5965d8;border-radius:7px;background:#414a86;color:#fff;font-size:9px;font-weight:800}.oe-rsvp.going{border-color:#3f765d;background:#2e5848;color:#b5f0d0}.oe-rsvp.interested{border-color:#6c5a91;background:#493b62;color:#e2d2ff}.oe-detail-link{border:0;background:transparent;color:#aeb5ff;font-size:8px}.oe-side-card{margin-bottom:11px;padding:14px;border:1px solid #3e414b;border-radius:10px;background:#2c2f37}.oe-side-card h3{margin:0 0 12px;color:#c9ced8;font-size:9px;letter-spacing:.8px;text-transform:uppercase}.oe-agenda-row{display:flex;gap:9px;padding:9px 0;border-top:1px solid #3d4049}.oe-agenda-date{min-width:31px;color:#aeb5ff;font-size:9px;font-weight:800}.oe-agenda-copy b{display:block;color:#dce0e8;font-size:9px}.oe-agenda-copy small{display:block;margin-top:3px;color:#9299a8;font-size:8px}.oe-reminder-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-top:1px solid #3d4049;color:#aeb4c0;font-size:9px}.oe-reminder-row b{color:#e2e5ec;font-size:9px}.oe-empty{display:grid;place-items:center;min-height:230px;padding:24px;border:1px dashed #454955;border-radius:10px;text-align:center}.oe-empty-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#393d56;color:#b7bcff;font-size:19px}.oe-empty b{margin-top:10px;font-size:12px}.oe-empty p{max-width:280px;margin:5px 0 0;color:#969dab;font-size:9px;line-height:1.6}.oe-modal{position:fixed;z-index:160;inset:0;display:grid;place-items:center;padding:15px}.oe-modal-backdrop{position:absolute;inset:0;border:0;background:#08090bd9}.oe-modal-card{position:relative;width:min(520px,100%);max-height:min(88vh,760px);overflow:auto;padding:20px;border:1px solid #484b56;border-radius:13px;background:#2b2e36;box-shadow:0 22px 70px #0009}.oe-modal-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.oe-modal-head h3{margin:0;font-size:16px}.oe-modal-close{border:0;background:transparent;color:#c8ced8;font-size:21px}.oe-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.oe-field{display:grid;gap:5px}.oe-field.full{grid-column:1/-1}.oe-field label{color:#aeb4c0;font-size:9px;font-weight:700}.oe-field input,.oe-field select,.oe-field textarea{width:100%;padding:10px;border:1px solid #484c58;border-radius:7px;outline:0;background:#23262d;color:#e8eaf0;font:inherit;font-size:10px}.oe-field textarea{min-height:76px;resize:vertical}.oe-field input:focus,.oe-field select:focus,.oe-field textarea:focus{border-color:#7781f5}.oe-form-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:16px}.oe-form-note{max-width:230px;color:#8f97a6;font-size:8px;line-height:1.5}.oe-form-actions{display:flex;gap:7px}.oe-secondary{padding:9px 12px;border:1px solid #4b4f5b;border-radius:7px;background:#343741;color:#d5d9e2;font-size:9px}.oe-primary{padding:9px 13px;border-radius:7px;background:#5865f2;color:white;font-size:9px;font-weight:800}.oe-detail-card{width:min(480px,100%)}.oe-detail-banner{margin:-20px -20px 16px;padding:21px 20px;background:linear-gradient(110deg,#383c60,#353047)}.oe-detail-banner small{color:#c0c4ff;font-size:8px;font-weight:800;letter-spacing:1px}.oe-detail-banner h3{margin:7px 0 4px;font-size:19px}.oe-detail-banner p{margin:0;color:#c0c4ce;font-size:9px;line-height:1.5}.oe-detail-facts{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:13px 0}.oe-fact{padding:10px;border:1px solid #41444e;border-radius:8px;background:#30333b}.oe-fact small{display:block;color:#9299a8;font-size:8px;text-transform:uppercase}.oe-fact b{display:block;margin-top:4px;color:#e5e7ed;font-size:10px}.oe-detail-description{color:#b8beca;font-size:10px;line-height:1.7}.oe-detail-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}.oe-danger{padding:9px 12px;border:1px solid #78494e;border-radius:7px;background:#4e3035;color:#ffc7cb;font-size:9px}.oe-canceled{color:#ffb8bd;font-size:8px;font-weight:800;text-transform:uppercase}.oe-toggle{accent-color:#6875ed}",
+      "@media(max-width:1050px){.oe-grid-layout{grid-template-columns:minmax(0,1fr) 205px}.oe-content{padding:18px}}",
+      "@media(max-width:760px){.oe-view{inset:0 0 58px}.oe-top{padding:15px 12px}.oe-top h1{font-size:19px}.oe-top p{font-size:9px}.oe-content{padding:12px}.oe-hero{min-height:125px;padding:16px}.oe-hero h2{font-size:17px}.oe-hero-stats{gap:10px;padding:0}.oe-stat b{font-size:17px}.oe-grid-layout{grid-template-columns:1fr}.oe-side-column{display:grid;grid-template-columns:1fr 1fr;gap:8px}.oe-side-card{margin:0}.oe-toolbar{align-items:stretch;flex-direction:column}.oe-search{width:100%}.oe-card{grid-template-columns:52px minmax(0,1fr);gap:9px;padding:10px}.oe-datebox{min-height:62px}.oe-datebox b{font-size:20px}.oe-card-actions{grid-column:2;display:flex;justify-content:space-between;justify-items:initial}.oe-card h4{font-size:11px}.oe-hero-stats .oe-stat:last-child{display:none}}",
+      "@media(max-width:420px){.oe-hero-stats{display:none}.oe-card-meta{gap:6px}.oe-card-bottom{margin-top:6px}.oe-side-column{grid-template-columns:1fr}.oe-form-grid{grid-template-columns:1fr}.oe-field.full{grid-column:auto}.oe-form-foot{align-items:flex-start;flex-direction:column}.oe-form-actions{width:100%;justify-content:flex-end}}"
+    ].join("");
+    document.head.appendChild(style);
+  }
+  function ensureEventsView(){
+    if(event$("#orbit-events-view"))return;
+    installEventsStyles();
+    const nav=document.querySelector(".primary-nav");
+    if(nav&&!event$("#orbit-events-nav")){
+      const button=document.createElement("button");button.id="orbit-events-nav";button.className="nav-item oe-nav";button.type="button";button.innerHTML="<span>▦</span> Events";
+      button.addEventListener("click",openEventsView);nav.appendChild(button);
+    }
+    const view=document.createElement("section");view.id="orbit-events-view";view.className="oe-view";view.hidden=true;
+    view.innerHTML='<header class="oe-top"><div><span class="oe-kicker">COMMUNITY CALENDAR</span><h1>Events</h1><p>Discover what is happening and plan your next community meetup.</p></div><div class="oe-top-actions"><button class="oe-create" data-oe-create>＋ Create Event</button></div></header><div class="oe-content"><section class="oe-hero"><div class="oe-hero-copy"><span class="oe-hero-label">MAKE SOMETHING HAPPEN</span><h2>Your community, in sync.</h2><p>Schedule voice hangouts, host stage discussions, or organize events outside Orbit.</p></div><div class="oe-hero-stats"><div class="oe-stat"><b id="oe-upcoming-count">0</b><small>Upcoming</small></div><div class="oe-stat"><b id="oe-going-count">0</b><small>Going</small></div><div class="oe-stat"><b id="oe-hosted-count">0</b><small>Hosted</small></div></div></section><div class="oe-toolbar"><div class="oe-tabs" role="tablist" aria-label="Event filters"><button class="oe-tab active" data-oe-filter="upcoming">Upcoming</button><button class="oe-tab" data-oe-filter="past">Past</button><button class="oe-tab" data-oe-filter="hosting">Hosting</button></div><label class="oe-search"><span>⌕</span><input id="oe-search" type="search" placeholder="Search events..." aria-label="Search events"></label></div><div class="oe-grid-layout"><section><div class="oe-section-head"><h3 id="oe-list-title">Upcoming events</h3><span id="oe-result-count"></span></div><div id="oe-event-list" class="oe-event-list"></div></section><aside class="oe-side-column"><section class="oe-side-card"><h3>Your schedule</h3><div id="oe-agenda"></div></section><section class="oe-side-card"><h3>Quick overview</h3><div class="oe-reminder-row"><span>Events you are going to</span><b id="oe-going-side">0</b></div><div class="oe-reminder-row"><span>Interested</span><b id="oe-interested-side">0</b></div><div class="oe-reminder-row"><span>Reminders enabled</span><b id="oe-reminder-side">0</b></div></section></aside></div></div>';
+    document.querySelector(".main-panel")?.appendChild(view);
+    const modal=document.createElement("div");modal.id="oe-editor";modal.className="oe-modal";modal.hidden=true;
+    modal.innerHTML='<button class="oe-modal-backdrop" data-oe-close aria-label="Close event form"></button><section class="oe-modal-card" role="dialog" aria-modal="true" aria-labelledby="oe-editor-title"><header class="oe-modal-head"><h3 id="oe-editor-title">Create an event</h3><button class="oe-modal-close" data-oe-close aria-label="Close">×</button></header><form id="oe-event-form"><div class="oe-form-grid"><div class="oe-field full"><label for="oe-title">Event name</label><input id="oe-title" name="title" maxlength="80" required placeholder="Give your event a name"></div><div class="oe-field full"><label for="oe-description">Description</label><textarea id="oe-description" name="description" maxlength="500" placeholder="What is this event about?"></textarea></div><div class="oe-field"><label for="oe-date">Date</label><input id="oe-date" name="date" type="date" required></div><div class="oe-field"><label for="oe-time">Start time</label><input id="oe-time" name="time" type="time" required></div><div class="oe-field"><label for="oe-type">Event type</label><select id="oe-type" name="type"><option value="voice">Voice channel</option><option value="stage">Stage event</option><option value="external">External location</option></select></div><div class="oe-field"><label for="oe-place">Location / channel</label><input id="oe-place" name="place" maxlength="80" required placeholder="e.g. Lounge"></div></div><div class="oe-form-foot"><span class="oe-form-note">Local preview only. Event data will not be saved to a server.</span><div class="oe-form-actions"><button type="button" class="oe-secondary" data-oe-close>Cancel</button><button type="submit" class="oe-primary">Save event</button></div></div></form></section>';
+    document.body.appendChild(modal);
+    const detail=document.createElement("div");detail.id="oe-detail";detail.className="oe-modal";detail.hidden=true;
+    detail.innerHTML='<button class="oe-modal-backdrop" data-oe-detail-close aria-label="Close event details"></button><section class="oe-modal-card oe-detail-card" role="dialog" aria-modal="true" aria-labelledby="oe-detail-title"><div id="oe-detail-content"></div></section>';
+    document.body.appendChild(detail);
+    view.addEventListener("click",onEventsClick);
+    modal.addEventListener("click",e=>{if(e.target.closest("[data-oe-close]"))closeEventEditor();});
+    detail.addEventListener("click",e=>{if(e.target.closest("[data-oe-detail-close]")){closeEventDetail();return;}onEventDetailAction(e);});
+    event$("#oe-event-form").addEventListener("submit",saveEvent);
+    event$("#oe-search").addEventListener("input",e=>{eventState.query=e.target.value.trim().toLowerCase();renderEvents();});
+    renderEvents();
+  }
+  function openEventsView(){
+    ensureEventsView();
+    event$("#orbit-events-view").hidden=false;
+    event$("#orbit-events-nav")?.classList.add("active");
+    document.querySelector(".main-header")?.setAttribute("hidden","");
+    document.querySelector(".chat-layout")?.setAttribute("hidden","");
+    event$("#friends-view")?.setAttribute("hidden","");
+    event$("#orbit-inbox-view")?.setAttribute("hidden","");
+    event$("#orbit-voice-view")?.setAttribute("hidden","");
+    closeSidebar();
+    renderEvents();
+  }
+  function closeEventsView(){
+    const view=event$("#orbit-events-view");if(!view)return;view.hidden=true;
+    event$("#orbit-events-nav")?.classList.remove("active");
+    document.querySelector(".main-header")?.removeAttribute("hidden");
+    document.querySelector(".chat-layout")?.removeAttribute("hidden");
+  }
+  function filteredEvents(){
+    return events.filter(e=>{
+      if(eventState.filter==="upcoming"&&e.status!=="upcoming")return false;
+      if(eventState.filter==="past"&&e.status!=="past")return false;
+      if(eventState.filter==="hosting"&&e.host!=="Aevryn")return false;
+      if(eventState.query&&!((e.title+" "+e.description+" "+e.place+" "+e.host).toLowerCase().includes(eventState.query)))return false;
+      return true;
+    }).sort((a,b)=>eventDate(a.date,a.time)-eventDate(b.date,b.time));
+  }
+  function renderEvents(){
+    const view=event$("#orbit-events-view");if(!view)return;
+    const upcoming=events.filter(e=>e.status==="upcoming"),going=upcoming.filter(e=>e.rsvp==="going").length,interested=upcoming.filter(e=>e.rsvp==="interested").length;
+    event$("#oe-upcoming-count").textContent=upcoming.length;
+    event$("#oe-going-count").textContent=going;
+    event$("#oe-hosted-count").textContent=upcoming.filter(e=>e.host==="Aevryn").length;
+    event$("#oe-going-side").textContent=going;
+    event$("#oe-interested-side").textContent=interested;
+    event$("#oe-reminder-side").textContent=upcoming.filter(e=>e.reminder).length;
+    document.querySelectorAll("[data-oe-filter]").forEach(b=>b.classList.toggle("active",b.dataset.oeFilter===eventState.filter));
+    event$("#oe-list-title").textContent=({upcoming:"Upcoming events",past:"Past events",hosting:"Events you host"}[eventState.filter]);
+    const list=filteredEvents();event$("#oe-result-count").textContent=list.length+" events";
+    event$("#oe-event-list").innerHTML=list.length?list.map(e=>{
+      const d=eventDate(e.date,e.time),rsvp=e.rsvp==="going"?"going":e.rsvp==="interested"?"interested":"";
+      return '<article class="oe-card"><div class="oe-datebox"><small>'+d.toLocaleDateString(undefined,{month:"short"})+'</small><b>'+d.getDate()+'</b><span>'+d.toLocaleDateString(undefined,{weekday:"short"})+'</span></div><div class="oe-card-main"><div class="oe-card-type"><span>'+eventIcon(e.type)+'</span>'+eventTypeName(e.type)+'</div><h4>'+eventEsc(e.title)+'</h4><div class="oe-card-meta"><span>◷ '+eventFormat(e.date,e.time)+'</span><span>⌖ '+eventEsc(e.place)+'</span></div><div class="oe-card-bottom"><span class="oe-avatar-stack"><i>A</i><i>M</i><i>N</i></span><small>'+e.attending+' going · '+e.interested+' interested</small></div></div><div class="oe-card-actions">'+(e.status==="past"?'<span class="oe-canceled">Completed</span>':'<button class="oe-rsvp '+rsvp+'" data-oe-rsvp="'+e.id+'">'+(e.rsvp==="going"?"✓ Going":e.rsvp==="interested"?"★ Interested":"RSVP")+'</button>')+'<button class="oe-detail-link" data-oe-detail="'+e.id+'">View details →</button></div></article>';
+    }).join(""):'<div class="oe-empty"><span class="oe-empty-icon">▦</span><b>No events found</b><p>Try another filter or search term, or create a new event for your community.</p></div>';
+    const agenda=upcoming.slice().sort((a,b)=>eventDate(a.date,a.time)-eventDate(b.date,b.time)).slice(0,3);
+    event$("#oe-agenda").innerHTML=agenda.length?agenda.map(e=>'<div class="oe-agenda-row"><span class="oe-agenda-date">'+eventDate(e.date,e.time).toLocaleDateString(undefined,{month:"short",day:"numeric"})+'</span><div class="oe-agenda-copy"><b>'+eventEsc(e.title)+'</b><small>'+eventDate(e.date,e.time).toLocaleTimeString(undefined,{hour:"numeric",minute:"2-digit"})+' · '+eventEsc(e.place)+'</small></div></div>').join(""):'<p class="oe-form-note">No upcoming events scheduled.</p>';
+  }
+  function onEventsClick(e){
+    const filter=e.target.closest("[data-oe-filter]")?.dataset.oeFilter;
+    if(filter){eventState.filter=filter;renderEvents();return;}
+    if(e.target.closest("[data-oe-create]")){openEventEditor();return;}
+    const rsvp=e.target.closest("[data-oe-rsvp]")?.dataset.oeRsvp;
+    if(rsvp){const item=events.find(x=>x.id===Number(rsvp));if(item){item.rsvp=item.rsvp==="going"?"none":"going";if(item.rsvp==="going")item.attending++;else item.attending=Math.max(0,item.attending-1);renderEvents();eventToast(item.rsvp==="going"?"You are going to "+item.title:"RSVP updated.");}return;}
+    const detail=e.target.closest("[data-oe-detail]")?.dataset.oeDetail;
+    if(detail){openEventDetail(Number(detail));return;}
+  }
+  function openEventEditor(id){
+    ensureEventsView();
+    const form=event$("#oe-event-form"),item=events.find(x=>x.id===id);
+    eventState.editing=item?item.id:null;
+    event$("#oe-editor-title").textContent=item?"Edit event":"Create an event";
+    form.reset();
+    if(item){["title","description","date","time","type","place"].forEach(key=>form.elements[key].value=item[key]||"");}
+    else{const tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);form.elements.date.value=tomorrow.getFullYear()+"-"+String(tomorrow.getMonth()+1).padStart(2,"0")+"-"+String(tomorrow.getDate()).padStart(2,"0");form.elements.time.value="18:00";form.elements.type.value="voice";}
+    event$("#oe-editor").hidden=false;
+    event$("#oe-title").focus();
+  }
+  function closeEventEditor(){event$("#oe-editor").hidden=true;eventState.editing=null;}
+  function saveEvent(e){
+    e.preventDefault();const form=e.currentTarget,data=Object.fromEntries(new FormData(form).entries());
+    if(!data.title.trim()||!data.date||!data.time||!data.place.trim())return;
+    if(eventDate(data.date,data.time).getTime()<Date.now()&&!eventState.editing){eventToast("Choose a future date and time for a new event.");return;}
+    if(eventState.editing){
+      const item=events.find(x=>x.id===eventState.editing);if(item)Object.assign(item,data);
+      eventToast("Event updated in local preview.");
+    }else{
+      events.push({id:Date.now(),...data,host:"Aevryn",attending:1,interested:0,status:"upcoming",rsvp:"going",reminder:false});
+      eventToast("Event created in local preview.");
+    }
+    eventState.filter="upcoming";eventState.query="";event$("#oe-search").value="";closeEventEditor();renderEvents();
+  }
+  function openEventDetail(id){
+    const e=events.find(x=>x.id===id);if(!e)return;eventState.detail=id;
+    event$("#oe-detail-content").innerHTML='<div class="oe-detail-banner"><small>'+eventTypeName(e.type).toUpperCase()+'</small><h3 id="oe-detail-title">'+eventEsc(e.title)+'</h3><p>Hosted by '+eventEsc(e.host)+' · '+(e.status==="past"?"Completed":"Community event")+'</p></div><div class="oe-detail-facts"><div class="oe-fact"><small>Date &amp; time</small><b>'+eventFormat(e.date,e.time)+'</b></div><div class="oe-fact"><small>Location</small><b>'+eventEsc(e.place)+'</b></div><div class="oe-fact"><small>Going</small><b>'+e.attending+' members</b></div><div class="oe-fact"><small>Interested</small><b>'+e.interested+' members</b></div></div><p class="oe-detail-description">'+eventEsc(e.description||"No event description provided.")+'</p><div class="oe-detail-actions">'+(e.status==="upcoming"?'<button class="oe-primary" data-oe-detail-rsvp="'+e.id+'">'+(e.rsvp==="going"?"✓ Going":"RSVP to event")+'</button><button class="oe-secondary" data-oe-reminder="'+e.id+'">'+(e.reminder?"Reminder on":"Set reminder")+'</button>':"")+(e.host==="Aevryn"&&e.status==="upcoming"?'<button class="oe-secondary" data-oe-edit="'+e.id+'">Edit event</button><button class="oe-danger" data-oe-cancel="'+e.id+'">Cancel event</button>':"")+'</div>';
+    event$("#oe-detail").hidden=false;
+  }
+  function onEventDetailAction(e){
+    const id=Number(e.target.closest("[data-oe-detail-rsvp]")?.dataset.oeDetailRsvp||e.target.closest("[data-oe-reminder]")?.dataset.oeReminder||e.target.closest("[data-oe-edit]")?.dataset.oeEdit||e.target.closest("[data-oe-cancel]")?.dataset.oeCancel);
+    if(!id)return;const item=events.find(x=>x.id===id);if(!item)return;
+    if(e.target.closest("[data-oe-detail-rsvp]")){item.rsvp=item.rsvp==="going"?"none":"going";item.attending=Math.max(0,item.attending+(item.rsvp==="going"?1:-1));openEventDetail(id);renderEvents();eventToast("RSVP updated.");}
+    if(e.target.closest("[data-oe-reminder]")){item.reminder=!item.reminder;openEventDetail(id);renderEvents();eventToast(item.reminder?"Reminder enabled in local preview.":"Reminder disabled.");}
+    if(e.target.closest("[data-oe-edit]")){closeEventDetail();openEventEditor(id);}
+    if(e.target.closest("[data-oe-cancel]")){item.status="canceled";closeEventDetail();renderEvents();eventToast("Event canceled in local preview.");}
+  }
+  function closeEventDetail(){event$("#oe-detail").hidden=true;eventState.detail=null;}
+  document.addEventListener("keydown",e=>{
+    if(e.key==="Escape"){
+      if(event$("#oe-detail")&&!event$("#oe-detail").hidden)closeEventDetail();
+      else if(event$("#oe-editor")&&!event$("#oe-editor").hidden)closeEventEditor();
+      else if(event$("#orbit-events-view")&&!event$("#orbit-events-view").hidden)closeEventsView();
+    }
+  });
+  // Initialize the Events navigation item during app startup so it is discoverable.
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded",ensureEventsView,{once:true});
+  else ensureEventsView();
+})();
