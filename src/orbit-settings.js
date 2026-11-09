@@ -9,7 +9,7 @@
     desktopNotifications:true, messageNotifications:true, friendNotifications:true, eventNotifications:true,
     density:"comfortable", fontScale:"normal", reduceMotion:false, highContrast:false,
     largeText:false, microphone:"Default microphone", output:"Default output", camera:"Default camera",
-    developerMode:false, hardwareAcceleration:true
+    developerMode:false, hardwareAcceleration:true, showConnections:true, connections:{steam:false,twitch:false,youtube:false,spotify:false,github:false,xbox:false}
   };
   let state = {...defaults};
   try { state = {...defaults, ...JSON.parse(localStorage.getItem("orbit-settings-v1") || "{}")}; } catch {}
@@ -17,7 +17,7 @@
   const sections = [
     ["account","My Account","◉"],["profiles","Profiles","◎"],["privacy","Privacy & Safety","◇"],
     ["notifications","Notifications","♧"],["appearance","Appearance","◐"],["accessibility","Accessibility","⊞"],
-    ["voice","Voice & Video","◖"],["sessions","Sessions & Devices","▣"],["advanced","Advanced","⚙"]
+    ["voice","Voice & Video","◖"],["connections","Connections","⇄"],["sessions","Sessions & Devices","▣"],["advanced","Advanced","⚙"]
   ];
   function persist(){ try { localStorage.setItem("orbit-settings-v1", JSON.stringify(state)); } catch {} }
   function toast(message){
@@ -121,6 +121,13 @@
       html=intro("Voice & Video","Review the device preference interface. Orbit is not requesting microphone or camera access.")+
         card("Input & output devices",'<div class="os-fields">'+selectField("Microphone","microphone",state.microphone,[["Default microphone","Default microphone"],["Built-in microphone","Built-in microphone"],["External microphone","External microphone"]])+selectField("Output device","output",state.output,[["Default output","Default output"],["Phone speaker","Phone speaker"],["Headphones","Headphones"]])+selectField("Camera","camera",state.camera,[["Default camera","Default camera"],["Front camera","Front camera"],["Rear camera","Rear camera"]])+'</div><div class="os-actions"><button class="os-button" data-settings-action="test-audio">Test audio interface</button></div>')+
         card("Connection status",'<div class="os-info">Microphone capture, camera streaming, screen sharing, and WebRTC are not connected. Device choices are visual placeholders only.</div>');
+    } else if(activeSection==="connections"){
+      const services=[["steam","Steam","Games and gaming profile"],["twitch","Twitch","Streaming profile"],["youtube","YouTube","Video channel"],["spotify","Spotify","Listening activity"],["github","GitHub","Developer profile"],["xbox","Xbox","Gaming profile"]];
+      const connected=services.filter(([id])=>state.connections?.[id]).length;
+      html=intro("Connections","Manage the external profiles you want to display on your Orbit profile. Each connection below is a local preview state; no external account is accessed.")+
+        card("Connected accounts",'<div class="os-row"><div class="os-row-copy"><b>'+connected+' of '+services.length+' accounts connected</b><small>Choose which services appear on your profile.</small></div><span class="os-chip">LOCAL PREVIEW</span></div>'+services.map(([id,name,description])=>'<div class="os-row os-connection-row"><div class="os-connection-mark">'+name.charAt(0)+'</div><div class="os-row-copy"><b>'+name+'</b><small>'+description+'</small></div><span class="os-chip">'+(state.connections?.[id]?'Connected':'Not connected')+'</span><button class="os-button" type="button" data-connection="'+id+'">'+(state.connections?.[id]?'Disconnect':'Connect')+'</button></div>').join(''))+
+        card("Profile visibility",row("Show connected accounts on my profile","Display connected services to other Orbit members.","showConnections"))+
+        card("Account linking & permissions",'<div class="os-info">Real account linking requires the provider sign-in flow, verified OAuth callbacks, secure token storage, and backend permission checks. These buttons only simulate connection state in this browser. Never enter external account passwords into this preview.</div>');
     } else if(activeSection==="sessions"){
       html=intro("Sessions & Devices","Review the session-management area planned for Orbit accounts.")+
         card("Current session",'<div class="os-session"><span class="os-session-icon">▣</span><div class="os-session-copy"><b>Current browser session</b><small>Device details and session identifiers are not available in this mock preview.</small></div><span class="os-preview-label">This device</span></div>')+
@@ -179,6 +186,8 @@
     const nav=event.target.closest("[data-settings-section]");if(nav){activeSection=nav.dataset.settingsSection;$("#os-heading").textContent=sections.find(x=>x[0]===activeSection)?.[1]||"Settings";renderSection();return;}
     const go=event.target.closest("[data-settings-go]");if(go){activeSection=go.dataset.settingsGo;$("#os-heading").textContent="Profiles";renderSection();return;}
     const action=event.target.closest("[data-settings-action]")?.dataset.settingsAction;
+    const connection=event.target.closest("[data-connection]")?.dataset.connection;
+    if(connection){state.connections=state.connections||{};state.connections[connection]=!state.connections[connection];persist();renderSection();toast(state.connections[connection]?"Connection simulated in this preview.":"Connection removed from this preview.");return;}
     if(action==="test-audio")toast("Audio testing is not connected in this preview.");
     if(action==="reset"){
       if(confirm("Reset local Orbit settings preferences in this browser?")){state={...defaults};persist();renderSection();toast("Local preferences reset.");}
