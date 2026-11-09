@@ -40,7 +40,7 @@
     document.body.appendChild(modal);
     view.addEventListener("click",onViewClick);
     modal.addEventListener("click",onModalClick);
-    document.addEventListener("input",e=>{if(e.target.matches("#om-search")){search=e.target.value.toLowerCase();renderPanel();}});
+    document.addEventListener("input",e=>{if(e.target.matches("#om-search")){const position=e.target.selectionStart;search=e.target.value.toLowerCase();renderPanel();const next=$("#om-search");if(next){next.focus();next.setSelectionRange(position,position);}}});
     document.addEventListener("change",e=>{const input=e.target.closest("[data-om-toggle]");if(input){const item=automod.find(x=>x.id===input.dataset.omToggle);if(item)item.enabled=input.checked;}});
   }
   function stats(){return {open:reports.filter(x=>x.status==="open").length,reviewing:reports.filter(x=>x.status==="reviewing").length,resolved:reports.filter(x=>x.status==="resolved").length,high:reports.filter(x=>x.severity==="high"&&x.status!=="resolved").length};}
@@ -80,7 +80,7 @@
     const general=e.target.closest("[data-om]")?.dataset.om;if(general==="close")close();if(general==="save-automod")toast("AutoMod preferences updated in this local preview.");
   }
   function onModalClick(e){
-    if(e.target.closest("[data-om-close]")){$("#om-modal-layer").hidden=true;modalAction=null;return;}
+    if(e.target.closest("[data-om-close]")){$("#om-modal-layer").hidden=true;modalAction=null;selectedReport=null;return;}
     const action=e.target.closest("[data-om-action]");if(action){const kind=action.dataset.omAction;if(kind==="resolve"){if(selectedReport)selectedReport.status="resolved";logs.unshift({action:"Resolved report",target:selectedReport?selectedReport.user:"Member",by:"Aevryn",time:"Just now",kind:"resolved"});$("#om-modal-layer").hidden=true;selectedReport=null;render();toast("Report marked as resolved in preview.");return;}const target=selectedReport?selectedReport.user:(modalAction&&modalAction.member?modalAction.member.name:"Member");showModal("Confirm moderation action",'<p>You are about to <b>'+esc(kind.replace("-"," "))+'</b> <b>'+esc(target)+'</b>.</p><div class="om-confirm-note">This is a simulated action. It will only update the local preview and audit log.</div>',{kind,target,report:selectedReport});return;}
     if(e.target.closest("[data-om-confirm]")&&modalAction){const a=modalAction;logs.unshift({action:a.kind==="warn"?"Issued warning":a.kind==="timeout"?"Timed out member":a.kind==="remove"?"Removed member":"Banned member",target:a.target,by:"Aevryn",time:"Just now",kind:a.kind});if(a.report)a.report.status="resolved";if(a.member){a.member.notes+=a.kind==="warn"?1:0;if(a.kind==="timeout")a.member.status="Timed out";if(a.kind==="remove"||a.kind==="ban")a.member.status=a.kind==="ban"?"Banned":"Removed";}$("#om-modal-layer").hidden=true;selectedReport=null;modalAction=null;render();toast("Action recorded in local preview.");}
   }
